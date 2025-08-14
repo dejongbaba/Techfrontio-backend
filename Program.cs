@@ -10,6 +10,7 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Threading.Tasks;
 using System.Linq;
 using Microsoft.OpenApi.Models;
+using Npgsql;
 using Course_management.Data;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -51,8 +52,12 @@ builder.Services.AddSwaggerGen(options =>
 });
 
 // Add EF Core and Identity
+var connectionString = builder.Environment.IsProduction() 
+    ? Environment.GetEnvironmentVariable("DATABASE_URL") ?? builder.Configuration.GetConnectionString("ProductionConnection")
+    : builder.Configuration.GetConnectionString("DefaultConnection");
+
 builder.Services.AddDbContext<Course_management.Data.DataContext>(options =>
-    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+    options.UseNpgsql(connectionString));
 builder.Services.AddIdentity<Course_management.Models.User, Microsoft.AspNetCore.Identity.IdentityRole>()
     .AddEntityFrameworkStores<Course_management.Data.DataContext>()
     .AddDefaultTokenProviders();
@@ -132,6 +137,9 @@ app.UseHttpsRedirection();
 
 app.UseAuthentication();
 app.UseAuthorization();
+
+// Add health check endpoint
+app.MapGet("/health", () => "Healthy");
 
 // Seed database with test data
 await DataContext.SeedData(app.Services);

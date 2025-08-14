@@ -6,6 +6,8 @@ WORKDIR /app
 EXPOSE 80
 EXPOSE 443
 
+# Install PostgreSQL client tools and curl for health checks
+RUN apt-get update && apt-get install -y postgresql-client curl && rm -rf /var/lib/apt/lists/*
 
 # This stage is used to build the service project
 FROM mcr.microsoft.com/dotnet/sdk:6.0 AS build
@@ -22,8 +24,24 @@ FROM build AS publish
 ARG BUILD_CONFIGURATION=Release
 RUN dotnet publish "./Course management.csproj" -c $BUILD_CONFIGURATION -o /app/publish /p:UseAppHost=false
 
+# Install EF Core tools for migrations
+RUN dotnet tool install --global dotnet-ef --version 6.0.36
+ENV PATH="$PATH:/root/.dotnet/tools"
+
+# Temporarily move SQL Server migrations to avoid build conflicts
+RUN if [ -d "Migrations" ]; then mv Migrations Migrations.backup; fi
+
 # This stage is used in production or when running from VS in regular mode (Default when not using the Debug configuration)
 FROM base AS final
 WORKDIR /app
 COPY --from=publish /app/publish .
-ENTRYPOINT ["dotnet", "Course management.dll"]
+
+# Copy startup script
+COPY startup.sh /app/startup.sh
+RUN chmod +x /app/startup.sh
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+  CMD curl -f http://localhost:80/health || exit 1
+
+ENTRYPOINT ["/app/startup.sh"]
