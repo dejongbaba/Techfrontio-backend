@@ -8,9 +8,9 @@ wait_for_db() {
     if [ ! -z "$DATABASE_URL" ]; then
         echo "Parsing DATABASE_URL: $DATABASE_URL"
         
-        # Parse DATABASE_URL (format: postgres://user:password@host:port/database)
-        # Remove protocol prefix
-        URL_WITHOUT_PROTOCOL=$(echo $DATABASE_URL | sed 's/^postgres:\/\///')
+        # Parse DATABASE_URL (format: postgres://user:password@host:port/database or postgres://user:password@host/database)
+        # Remove protocol prefix (handle both postgres:// and postgresql://)
+        URL_WITHOUT_PROTOCOL=$(echo $DATABASE_URL | sed 's/^postgres[ql]*:\/\///')
         
         # Extract user:password part
         USER_PASS=$(echo $URL_WITHOUT_PROTOCOL | cut -d'@' -f1)
@@ -19,13 +19,19 @@ wait_for_db() {
         # Extract host:port/database part
         HOST_PORT_DB=$(echo $URL_WITHOUT_PROTOCOL | cut -d'@' -f2)
         
-        # Extract host
-        DB_HOST=$(echo $HOST_PORT_DB | cut -d':' -f1)
-        
-        # Extract port and database
-        PORT_DB=$(echo $HOST_PORT_DB | cut -d':' -f2)
-        DB_PORT=$(echo $PORT_DB | cut -d'/' -f1)
-        DB_NAME=$(echo $PORT_DB | cut -d'/' -f2 | cut -d'?' -f1)
+        # Check if port is specified (contains colon before slash)
+        if echo "$HOST_PORT_DB" | grep -q ':[0-9]*/'; then
+            # Port is specified: host:port/database
+            DB_HOST=$(echo $HOST_PORT_DB | cut -d':' -f1)
+            PORT_DB=$(echo $HOST_PORT_DB | cut -d':' -f2)
+            DB_PORT=$(echo $PORT_DB | cut -d'/' -f1)
+            DB_NAME=$(echo $PORT_DB | cut -d'/' -f2 | cut -d'?' -f1)
+        else
+            # No port specified: host/database
+            DB_HOST=$(echo $HOST_PORT_DB | cut -d'/' -f1)
+            DB_PORT=5432
+            DB_NAME=$(echo $HOST_PORT_DB | cut -d'/' -f2 | cut -d'?' -f1)
+        fi
         
         # Validate extracted values
         if [ -z "$DB_HOST" ] || [ -z "$DB_PORT" ] || [ -z "$DB_USER" ] || [ -z "$DB_NAME" ]; then
