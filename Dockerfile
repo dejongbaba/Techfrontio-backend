@@ -6,8 +6,8 @@ WORKDIR /app
 EXPOSE 80
 EXPOSE 443
 
-# Install PostgreSQL client tools and curl for health checks
-RUN apt-get update && apt-get install -y postgresql-client curl && rm -rf /var/lib/apt/lists/*
+# Install curl for health checks
+RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
 
 # This stage is used to build the service project
 FROM mcr.microsoft.com/dotnet/sdk:6.0 AS build

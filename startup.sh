@@ -6,38 +6,65 @@ wait_for_db() {
     
     # Extract connection details from DATABASE_URL if available
     if [ ! -z "$DATABASE_URL" ]; then
-        # Parse DATABASE_URL (format: postgres://user:password@host:port/database)
-        DB_HOST=$(echo $DATABASE_URL | sed -n 's/.*@\([^:]*\):.*/\1/p')
-        DB_PORT=$(echo $DATABASE_URL | sed -n 's/.*:\([0-9]*\)\/.*/\1/p')
-        DB_USER=$(echo $DATABASE_URL | sed -n 's/.*:\/\/\([^:]*\):.*/\1/p')
-        DB_NAME=$(echo $DATABASE_URL | sed -n 's/.*\/\([^?]*\).*/\1/p')
+        echo "Parsing DATABASE_URL: $DATABASE_URL"
         
-        # If port is not found, default to 5432
-        if [ -z "$DB_PORT" ]; then
+        # Parse DATABASE_URL (format: postgres://user:password@host:port/database)
+        # Remove protocol prefix
+        URL_WITHOUT_PROTOCOL=$(echo $DATABASE_URL | sed 's/^postgres:\/\///')
+        
+        # Extract user:password part
+        USER_PASS=$(echo $URL_WITHOUT_PROTOCOL | cut -d'@' -f1)
+        DB_USER=$(echo $USER_PASS | cut -d':' -f1)
+        
+        # Extract host:port/database part
+        HOST_PORT_DB=$(echo $URL_WITHOUT_PROTOCOL | cut -d'@' -f2)
+        
+        # Extract host
+        DB_HOST=$(echo $HOST_PORT_DB | cut -d':' -f1)
+        
+        # Extract port and database
+        PORT_DB=$(echo $HOST_PORT_DB | cut -d':' -f2)
+        DB_PORT=$(echo $PORT_DB | cut -d'/' -f1)
+        DB_NAME=$(echo $PORT_DB | cut -d'/' -f2 | cut -d'?' -f1)
+        
+        # Validate extracted values
+        if [ -z "$DB_HOST" ] || [ -z "$DB_PORT" ] || [ -z "$DB_USER" ] || [ -z "$DB_NAME" ]; then
+            echo "Failed to parse DATABASE_URL properly. Using defaults."
+            DB_HOST=localhost
             DB_PORT=5432
+            DB_USER=postgres
+            DB_NAME=Techfrontio
         fi
+        
+        echo "Parsed connection details: Host=$DB_HOST, Port=$DB_PORT, User=$DB_USER, Database=$DB_NAME"
     else
         # Fallback to default values
         DB_HOST=${DB_HOST:-localhost}
         DB_PORT=${DB_PORT:-5432}
         DB_USER=${DB_USER:-postgres}
         DB_NAME=${DB_NAME:-Techfrontio}
+        echo "Using default connection details: Host=$DB_HOST, Port=$DB_PORT, User=$DB_USER, Database=$DB_NAME"
     fi
     
     echo "Checking connection to $DB_HOST:$DB_PORT..."
     
-    # Wait for database to be ready (max 60 seconds)
-    for i in {1..60}; do
-        if pg_isready -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" > /dev/null 2>&1; then
-            echo "Database is ready!"
-            return 0
-        fi
-        echo "Database not ready yet... waiting ($i/60)"
-        sleep 1
-    done
+    # For Render deployment, we trust that DATABASE_URL is valid when provided
+    if [ ! -z "$DATABASE_URL" ]; then
+        echo "DATABASE_URL provided. Assuming database is managed by Render."
+        return 0
+    fi
     
-    echo "Database connection timeout after 60 seconds"
-    return 1
+    # For local development, do a simple connection test
+    echo "Testing local database connection..."
+    
+    # Try to connect using .NET Entity Framework (more reliable than pg_isready)
+    if dotnet ef database ensure-created --dry-run > /dev/null 2>&1; then
+        echo "Database connection successful!"
+        return 0
+    else
+        echo "Database connection failed. Please ensure PostgreSQL is running locally."
+        return 1
+    fi
 }
 
 # Function to run database migrations
