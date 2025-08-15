@@ -80,19 +80,28 @@ run_migrations() {
     # Set environment for production
     export ASPNETCORE_ENVIRONMENT=Production
     
+    # Find the project file
+    PROJECT_FILE="Course management.csproj"
+    if [ ! -f "$PROJECT_FILE" ]; then
+        echo "Project file $PROJECT_FILE not found in current directory: $(pwd)"
+        echo "Contents of current directory:"
+        ls -la
+        return 1
+    fi
+    
     # Create fresh PostgreSQL migrations if none exist
     if [ ! -d "Migrations" ]; then
         echo "Creating PostgreSQL migrations..."
-        if ! dotnet ef migrations add InitialPostgreSQL; then
+        if ! dotnet ef migrations add InitialPostgreSQL --project "$PROJECT_FILE"; then
             echo "Failed to create migrations. Exiting."
             return 1
         fi
     fi
 
     echo "Running database migrations..."
-    if ! dotnet ef database update; then
+    if ! dotnet ef database update --project "$PROJECT_FILE"; then
         echo "Migration failed. Trying to ensure database exists..."
-        if ! dotnet ef database ensure-created; then
+        if ! dotnet ef database ensure-created --project "$PROJECT_FILE"; then
             echo "Database creation failed. Exiting."
             return 1
         fi
