@@ -89,9 +89,11 @@ run_migrations() {
         return 1
     fi
     
-    # Create fresh PostgreSQL migrations if none exist
-    if [ ! -d "Migrations" ]; then
-        echo "Creating PostgreSQL migrations..."
+    # Check if migrations exist
+    if [ -d "Migrations" ] && [ "$(ls -A Migrations)" ]; then
+        echo "Migrations found. Skipping migration creation."
+    else
+        echo "No migrations found. Creating PostgreSQL migrations..."
         if ! dotnet ef migrations add InitialPostgreSQL --project "$PROJECT_FILE"; then
             echo "Failed to create migrations. Exiting."
             return 1

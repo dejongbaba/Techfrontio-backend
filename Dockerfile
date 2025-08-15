@@ -45,6 +45,12 @@ ENV PATH="$PATH:/root/.dotnet/tools"
 # Copy published application
 COPY --from=publish /app/publish .
 
+# Copy source files needed for EF migrations
+COPY ["Course management.csproj", "./"]
+COPY ["Data/", "./Data/"]
+COPY ["Models/", "./Models/"]
+COPY ["Migrations/", "./Migrations/"]
+
 # Copy startup script
 COPY startup.sh /app/startup.sh
 RUN chmod +x /app/startup.sh

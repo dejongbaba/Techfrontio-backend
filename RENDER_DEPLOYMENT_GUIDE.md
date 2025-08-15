@@ -21,7 +21,26 @@ The deployment issues have been resolved by fixing the following problems:
 - Defaults to port 5432 when not specified
 - Properly extracts host, port, username, and database name
 
-### 3. PostgreSQL Client Dependency
+### 3. Project File Not Found for Migrations
+**Problem**: EF migrations were failing with "No project was found" error even though the DATABASE_URL was parsed correctly.
+
+**Solution**: 
+- Modified Dockerfile to copy the project file (`Course management.csproj`) to the final container
+- Added copying of essential source folders: `Data/`, `Models/`, and `Migrations/`
+- Updated startup script to handle existing migrations properly
+- Added explicit project file specification in all `dotnet ef` commands
+
+### 4. Improved DATABASE_URL Parsing
+**Problem**: The original parsing logic couldn't handle Render's PostgreSQL URL format correctly, especially URLs without explicit port numbers.
+
+**Root Cause**: The parsing logic assumed all URLs would have explicit ports and didn't handle the database name extraction properly.
+
+**Solution**:
+- Updated parsing to handle URLs with and without ports
+- Improved database name extraction from the URL path
+- Added comprehensive validation and logging
+
+### 5. PostgreSQL Client Dependency
 **Problem**: The script was using `pg_isready` which required PostgreSQL client tools and was causing connection timeouts.
 
 **Solution**: 
@@ -62,8 +81,10 @@ docker build -t course-management-app .
    - For Local: Uses .NET EF for connection testing
 
 3. **Migration Management**:
-   - Creates PostgreSQL migrations if none exist
-   - Runs `dotnet ef database update`
+   - Checks if migrations already exist in the Migrations folder
+   - Creates new migrations only if none exist
+   - Applies migrations to the database
+   - Uses explicit project file specification for all EF commands
    - Falls back to `ensure-created` if migrations fail
 
 4. **Application Startup**: Starts the .NET application
@@ -87,6 +108,12 @@ docker build -t course-management-app .
 4. **Port Configuration**:
    - Render expects your app to listen on the port specified by `PORT` environment variable
    - The app should bind to `0.0.0.0:$PORT` not `localhost`
+
+5. **Docker Configuration**:
+   - Verify .NET SDK and EF tools are properly installed in the container
+   - Check startup.sh permissions - the script should be executable
+   - Project file issues: Ensure `Course management.csproj` and source folders are copied to the container
+   - Migration conflicts: If you have local migrations that conflict, consider clearing the Migrations folder before deployment
 
 ### Common Render PostgreSQL URL Format:
 ```
