@@ -15,6 +15,13 @@ using Course_management.Data;
 
 var builder = WebApplication.CreateBuilder(args);
 
+ // Configure Kestrel for Render deployment
+builder.WebHost.ConfigureKestrel(options =>
+{
+    var port = Environment.GetEnvironmentVariable("PORT") ?? "10000";
+    options.ListenAnyIP(int.Parse(port));
+});
+
 // Add services to the container.
 
 builder.Services.AddControllers();
@@ -133,7 +140,8 @@ if (app.Environment.IsDevelopment())
     });
 }
 
-app.UseHttpsRedirection();
+// Remove HTTPS redirection for Render deployment
+// app.UseHttpsRedirection();
 
 app.UseAuthentication();
 app.UseAuthorization();

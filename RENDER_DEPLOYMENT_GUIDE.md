@@ -40,7 +40,17 @@ The deployment issues have been resolved by fixing the following problems:
 - Improved database name extraction from the URL path
 - Added comprehensive validation and logging
 
-### 5. PostgreSQL Client Dependency
+### 5. Port Binding Issue
+**Problem**: The application was not binding to the correct host and port for Render, causing "No open ports detected" errors.
+
+**Root Cause**: The application was using default Kestrel configuration which doesn't bind to 0.0.0.0 and the PORT environment variable that Render expects.
+
+**Solution**:
+- Configured Kestrel to listen on 0.0.0.0 and use the PORT environment variable (defaults to 10000)
+- Removed HTTPS redirection since Render handles SSL termination
+- Application now properly binds to the port Render expects
+
+### 6. PostgreSQL Client Dependency
 **Problem**: The script was using `pg_isready` which required PostgreSQL client tools and was causing connection timeouts.
 
 **Solution**: 
@@ -109,7 +119,12 @@ docker build -t course-management-app .
    - Render expects your app to listen on the port specified by `PORT` environment variable
    - The app should bind to `0.0.0.0:$PORT` not `localhost`
 
-5. **Docker Configuration**:
+5. **Port Binding Issues**:
+   - Ensure the application binds to `0.0.0.0` and uses the `PORT` environment variable
+   - Remove HTTPS redirection for Render deployments
+   - Check that the application listens on the correct port (default 10000)
+
+6. **Docker Configuration**:
    - Verify .NET SDK and EF tools are properly installed in the container
    - Check startup.sh permissions - the script should be executable
    - Project file issues: Ensure `Course management.csproj` and source folders are copied to the container
