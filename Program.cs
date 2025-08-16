@@ -83,15 +83,30 @@ else
 // Helper method to convert DATABASE_URL to .NET connection string
 static string ConvertDatabaseUrl(string databaseUrl)
 {
-    var uri = new Uri(databaseUrl);
-    var host = uri.Host;
-    var port = uri.Port;
-    var database = uri.AbsolutePath.TrimStart('/');
-    var userInfo = uri.UserInfo.Split(':');
-    var username = userInfo[0];
-    var password = userInfo.Length > 1 ? userInfo[1] : "";
-    
-    return $"Host={host};Port={port};Database={database};Username={username};Password={password};SSL Mode=Require;Trust Server Certificate=true";
+    try
+    {
+        var uri = new Uri(databaseUrl);
+        var host = uri.Host;
+        var port = uri.Port == -1 ? 5432 : uri.Port; // Default PostgreSQL port
+        var database = uri.AbsolutePath.TrimStart('/');
+        var userInfo = uri.UserInfo.Split(':');
+        var username = userInfo[0];
+        var password = userInfo.Length > 1 ? userInfo[1] : "";
+        
+        if (string.IsNullOrEmpty(host) || string.IsNullOrEmpty(database) || string.IsNullOrEmpty(username))
+        {
+            throw new ArgumentException($"Invalid DATABASE_URL format. Host: '{host}', Database: '{database}', Username: '{username}'");
+        }
+        
+        var connectionString = $"Host={host};Port={port};Database={database};Username={username};Password={password};SSL Mode=Require;Trust Server Certificate=true";
+        Console.WriteLine($"Converted DATABASE_URL to connection string: Host={host}, Port={port}, Database={database}, Username={username}");
+        
+        return connectionString;
+    }
+    catch (Exception ex)
+    {
+        throw new ArgumentException($"Failed to parse DATABASE_URL: {ex.Message}", ex);
+    }
 }
 
 builder.Services.AddDbContext<Course_management.Data.DataContext>(options =>
