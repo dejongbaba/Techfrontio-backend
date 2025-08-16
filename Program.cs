@@ -25,6 +25,18 @@ builder.WebHost.ConfigureKestrel(options =>
 // Add services to the container.
 
 builder.Services.AddControllers();
+
+// Add CORS configuration
+builder.Services.AddCors(options =>
+{
+    options.AddDefaultPolicy(builder =>
+    {
+        builder.AllowAnyOrigin()
+               .AllowAnyMethod()
+               .AllowAnyHeader();
+    });
+});
+
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options =>
@@ -176,24 +188,29 @@ builder.Services.AddAuthorization(options =>
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
-if (app.Environment.IsDevelopment())
+// Enable Swagger in both Development and Production for API documentation
+app.UseSwagger();
+app.UseSwaggerUI(c =>
 {
-    app.UseSwagger();
-    app.UseSwaggerUI(c =>
-    {
-        c.SwaggerEndpoint("/swagger/v1/swagger.json", "Course Management API V1");
-        c.DocExpansion(Swashbuckle.AspNetCore.SwaggerUI.DocExpansion.None);
-    });
-}
+    c.SwaggerEndpoint("/swagger/v1/swagger.json", "Course Management API V1");
+    c.DocExpansion(Swashbuckle.AspNetCore.SwaggerUI.DocExpansion.None);
+    c.RoutePrefix = "swagger"; // Explicitly set the route prefix
+});
 
 // Remove HTTPS redirection for Render deployment
 // app.UseHttpsRedirection();
+
+// Enable CORS
+app.UseCors();
 
 app.UseAuthentication();
 app.UseAuthorization();
 
 // Add health check endpoint
 app.MapGet("/health", () => "Healthy");
+
+// Add root endpoint that redirects to Swagger
+app.MapGet("/", () => Results.Redirect("/swagger"));
 
 // Run database migrations automatically
 try

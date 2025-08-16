@@ -129,7 +129,16 @@ docker build -t course-management-app .
    - Remove HTTPS redirection for Render deployments
    - Check that the application listens on the correct port (default 10000)
 
-8. **Docker Configuration**:
+8. **API Access Issues**:
+   - **Problem**: 404 errors when accessing the deployed application or Swagger documentation
+   - **Cause**: Swagger was only enabled in Development environment, or routing issues
+   - **Solution**:
+     - Swagger is now enabled in both Development and Production environments
+     - Access Swagger documentation at: `https://your-app.onrender.com/swagger`
+     - Root URL (`/`) automatically redirects to Swagger documentation
+     - Health check endpoint available at: `https://your-app.onrender.com/health`
+
+9. **Docker Configuration**:
    - Verify the application starts correctly with `dotnet "Course management.dll"`
    - Check that migrations are included in the published application
    - Ensure DATABASE_URL environment variable is properly set in Render
