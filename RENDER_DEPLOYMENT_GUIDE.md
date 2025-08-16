@@ -21,14 +21,17 @@ The deployment issues have been resolved by fixing the following problems:
 - Defaults to port 5432 when not specified
 - Properly extracts host, port, username, and database name
 
-### 3. Project File Not Found for Migrations
-**Problem**: EF migrations were failing with "No project was found" error even though the DATABASE_URL was parsed correctly.
+### 3. Migration Approach Simplified
+**Problem**: Using shell scripts for database migrations was complex and error-prone, requiring EF CLI tools and source files in the container.
 
-**Solution**: 
-- Modified Dockerfile to copy the project file (`Course management.csproj`) to the final container
-- Added copying of essential source folders: `Data/`, `Models/`, and `Migrations/`
-- Updated startup script to handle existing migrations properly
-- Added explicit project file specification in all `dotnet ef` commands
+**Root Cause**: The startup script approach required additional dependencies and complexity in the Docker container.
+
+**Solution**:
+- Moved database migration logic directly into Program.cs using `context.Database.MigrateAsync()`
+- Removed dependency on EF CLI tools and startup scripts
+- Simplified Dockerfile by using runtime image instead of SDK
+- Added comprehensive logging for migration process
+- Automatic error handling and database creation
 
 ### 4. Improved DATABASE_URL Parsing
 **Problem**: The original parsing logic couldn't handle Render's PostgreSQL URL format correctly, especially URLs without explicit port numbers.
@@ -79,25 +82,14 @@ docker build -t course-management-app .
 ./startup.sh
 ```
 
-## What the Fixed Startup Script Does
+## What the Updated Application Does
 
-1. **Database URL Parsing**: Correctly parses the Render PostgreSQL URL format:
-   ```
-   postgres://user:password@host:port/database
-   ```
-
-2. **Smart Connection Handling**:
-   - For Render: Trusts that `DATABASE_URL` is valid (no timeout loops)
-   - For Local: Uses .NET EF for connection testing
-
-3. **Migration Management**:
-   - Checks if migrations already exist in the Migrations folder
-   - Creates new migrations only if none exist
-   - Applies migrations to the database
-   - Uses explicit project file specification for all EF commands
-   - Falls back to `ensure-created` if migrations fail
-
-4. **Application Startup**: Starts the .NET application
+1. **Automatic Database Migration**: The application now handles database migrations automatically during startup in Program.cs
+2. **Proper Logging**: Comprehensive logging for migration process with detailed error handling
+3. **Simplified Deployment**: No longer requires startup scripts or EF CLI tools in the container
+4. **Database Creation**: Automatically ensures the database exists and applies any pending migrations
+5. **Data Seeding**: Seeds the database with test data after successful migration
+6. **Error Handling**: Proper exception handling with detailed logging for troubleshooting
 
 ## Troubleshooting
 
@@ -119,16 +111,17 @@ docker build -t course-management-app .
    - Render expects your app to listen on the port specified by `PORT` environment variable
    - The app should bind to `0.0.0.0:$PORT` not `localhost`
 
-5. **Port Binding Issues**:
+5. **Migration Issues**: Check application logs for database migration errors during startup
+
+6. **Port Binding Issues**:
    - Ensure the application binds to `0.0.0.0` and uses the `PORT` environment variable
    - Remove HTTPS redirection for Render deployments
    - Check that the application listens on the correct port (default 10000)
 
-6. **Docker Configuration**:
-   - Verify .NET SDK and EF tools are properly installed in the container
-   - Check startup.sh permissions - the script should be executable
-   - Project file issues: Ensure `Course management.csproj` and source folders are copied to the container
-   - Migration conflicts: If you have local migrations that conflict, consider clearing the Migrations folder before deployment
+7. **Docker Configuration**:
+   - Verify the application starts correctly with `dotnet "Course management.dll"`
+   - Check that migrations are included in the published application
+   - Ensure DATABASE_URL environment variable is properly set in Render
 
 ### Common Render PostgreSQL URL Format:
 ```

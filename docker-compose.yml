@@ -5,9 +5,9 @@ services:
     image: postgres:13
     container_name: course_management_db
     environment:
-      POSTGRES_DB: Techfrontio
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: password
+      POSTGRES_DB: techfrontdb
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: D9q0vVboLBOPw92uDpgk5lJvTfkbDcVD
     ports:
       - "5432:5432"
     volumes:
@@ -25,7 +25,7 @@ services:
     container_name: course_management_app
     environment:
       - ASPNETCORE_ENVIRONMENT=Production
-      - DATABASE_URL=Host=postgres;Database=Techfrontio;Username=postgres;Password=password;Port=5432
+      - DATABASE_URL=Host=dpg-d2emfps9c44c7394sb80-a;Database=techfrontdb;Username=admin;Password=D9q0vVboLBOPw92uDpgk5lJvTfkbDcVD;Port=5432
     ports:
       - "8080:80"
     depends_on:

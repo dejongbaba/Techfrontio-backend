@@ -32,28 +32,16 @@ ENV PATH="$PATH:/root/.dotnet/tools"
 RUN if [ -d "Migrations" ]; then mv Migrations Migrations.backup; fi
 
 # This stage is used in production or when running from VS in regular mode (Default when not using the Debug configuration)
-FROM mcr.microsoft.com/dotnet/sdk:6.0 AS final
+FROM mcr.microsoft.com/dotnet/aspnet:6.0 AS final
 WORKDIR /app
 
 # Install curl for health checks
 RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
 
-# Install EF Core tools for migrations in the final image
-RUN dotnet tool install --global dotnet-ef --version 6.0.36
-ENV PATH="$PATH:/root/.dotnet/tools"
-
 # Copy published application
 COPY --from=publish /app/publish .
 
-# Copy source files needed for EF migrations
-COPY ["Course management.csproj", "./"]
-COPY ["Data/", "./Data/"]
-COPY ["Models/", "./Models/"]
-COPY ["Migrations/", "./Migrations/"]
-
-# Copy startup script
-COPY startup.sh /app/startup.sh
-RUN chmod +x /app/startup.sh
+# No longer need source files or startup script - migrations handled in Program.cs
 
 # Expose ports
 EXPOSE 80
@@ -63,4 +51,4 @@ EXPOSE 443
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
   CMD curl -f http://localhost:80/health || exit 1
 
-ENTRYPOINT ["/app/startup.sh"]
+ENTRYPOINT ["dotnet", "Course management.dll"]

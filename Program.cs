@@ -149,8 +149,33 @@ app.UseAuthorization();
 // Add health check endpoint
 app.MapGet("/health", () => "Healthy");
 
-// Seed database with test data
-await DataContext.SeedData(app.Services);
+// Run database migrations automatically
+try
+{
+    using (var scope = app.Services.CreateScope())
+    {
+        var context = scope.ServiceProvider.GetRequiredService<DataContext>();
+        var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
+        
+        logger.LogInformation("Starting database migration...");
+        
+        // Ensure database is created and apply any pending migrations
+        await context.Database.MigrateAsync();
+        
+        logger.LogInformation("Database migration completed successfully.");
+        
+        // Seed database with test data
+        await DataContext.SeedData(app.Services);
+        
+        logger.LogInformation("Database seeding completed.");
+    }
+}
+catch (Exception ex)
+{
+    var logger = app.Services.GetRequiredService<ILogger<Program>>();
+    logger.LogError(ex, "An error occurred during database migration: {Message}", ex.Message);
+    throw;
+}
 
 app.MapControllers();
 
