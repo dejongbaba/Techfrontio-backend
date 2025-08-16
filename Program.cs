@@ -59,9 +59,40 @@ builder.Services.AddSwaggerGen(options =>
 });
 
 // Add EF Core and Identity
-var connectionString = builder.Environment.IsProduction() 
-    ? Environment.GetEnvironmentVariable("DATABASE_URL") ?? builder.Configuration.GetConnectionString("ProductionConnection")
-    : builder.Configuration.GetConnectionString("DefaultConnection");
+string connectionString;
+if (builder.Environment.IsProduction())
+{
+    var databaseUrl = Environment.GetEnvironmentVariable("DATABASE_URL");
+    if (!string.IsNullOrEmpty(databaseUrl))
+    {
+        // Convert Render PostgreSQL URL to .NET connection string format
+        connectionString = ConvertDatabaseUrl(databaseUrl);
+    }
+    else
+    {
+        connectionString = builder.Configuration.GetConnectionString("ProductionConnection") 
+            ?? throw new InvalidOperationException("DATABASE_URL environment variable is not set for production.");
+    }
+}
+else
+{
+    connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
+        ?? throw new InvalidOperationException("DefaultConnection is not configured.");
+}
+
+// Helper method to convert DATABASE_URL to .NET connection string
+static string ConvertDatabaseUrl(string databaseUrl)
+{
+    var uri = new Uri(databaseUrl);
+    var host = uri.Host;
+    var port = uri.Port;
+    var database = uri.AbsolutePath.TrimStart('/');
+    var userInfo = uri.UserInfo.Split(':');
+    var username = userInfo[0];
+    var password = userInfo.Length > 1 ? userInfo[1] : "";
+    
+    return $"Host={host};Port={port};Database={database};Username={username};Password={password};SSL Mode=Require;Trust Server Certificate=true";
+}
 
 builder.Services.AddDbContext<Course_management.Data.DataContext>(options =>
     options.UseNpgsql(connectionString));
@@ -158,6 +189,33 @@ try
         var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
         
         logger.LogInformation("Starting database migration...");
+        
+        // Log connection string info for debugging (without exposing sensitive data)
+        var dbConnection = context.Database.GetDbConnection();
+        logger.LogInformation("Database provider: {Provider}", context.Database.ProviderName);
+        logger.LogInformation("Connection string configured: {HasConnectionString}", !string.IsNullOrEmpty(dbConnection.ConnectionString));
+        
+        if (string.IsNullOrEmpty(dbConnection.ConnectionString))
+        {
+            logger.LogError("Connection string is null or empty!");
+            
+            // Log environment variables for debugging
+            var databaseUrl = Environment.GetEnvironmentVariable("DATABASE_URL");
+            logger.LogInformation("DATABASE_URL environment variable: {HasDatabaseUrl}", !string.IsNullOrEmpty(databaseUrl));
+            
+            if (!string.IsNullOrEmpty(databaseUrl))
+            {
+                logger.LogInformation("DATABASE_URL length: {Length}", databaseUrl.Length);
+                logger.LogInformation("DATABASE_URL starts with: {Prefix}", databaseUrl.Substring(0, Math.Min(10, databaseUrl.Length)));
+            }
+            
+            throw new InvalidOperationException("Database connection string is not properly configured.");
+        }
+        
+        // Test database connection before migration
+        logger.LogInformation("Testing database connection...");
+        await context.Database.CanConnectAsync();
+        logger.LogInformation("Database connection successful.");
         
         // Ensure database is created and apply any pending migrations
         await context.Database.MigrateAsync();

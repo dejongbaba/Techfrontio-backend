@@ -113,15 +113,25 @@ docker build -t course-management-app .
 
 5. **Migration Issues**: Check application logs for database migration errors during startup
 
-6. **Port Binding Issues**:
+6. **Connection String Issues**:
+   - **Problem**: `Format of the initialization string does not conform to specification starting at index 0`
+   - **Cause**: DATABASE_URL environment variable is empty, null, or malformed
+   - **Solution**: 
+     - Verify DATABASE_URL is set in Render environment variables
+     - Check that the PostgreSQL URL format is correct: `postgresql://username:password@host:port/database`
+     - Review application logs for connection string debugging information
+     - Ensure the ConvertDatabaseUrl helper method properly parses the URL
+
+7. **Port Binding Issues**:
    - Ensure the application binds to `0.0.0.0` and uses the `PORT` environment variable
    - Remove HTTPS redirection for Render deployments
    - Check that the application listens on the correct port (default 10000)
 
-7. **Docker Configuration**:
+8. **Docker Configuration**:
    - Verify the application starts correctly with `dotnet "Course management.dll"`
    - Check that migrations are included in the published application
    - Ensure DATABASE_URL environment variable is properly set in Render
+   - Review connection string parsing and validation logs
 
 ### Common Render PostgreSQL URL Format:
 ```
