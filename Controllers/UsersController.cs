@@ -139,54 +139,7 @@ namespace Course_management.Controllers
             return Ok(ApiResponse.Success("User deleted successfully", 200));
         }
 
-        [HttpPost("register")]
-        public async Task<IActionResult> Register([FromBody] RegisterDto dto)
-        {
-            // Validate role
-            var validRoles = new[] { "Admin", "Tutor", "Student" };
-            if (!validRoles.Contains(dto.Role))
-                return BadRequest(ApiResponse.Error("Invalid role specified", 400));
-                
-            // Check if email already exists
-            var existingUser = await _userManager.FindByEmailAsync(dto.Email);
-            if (existingUser != null)
-                return BadRequest(ApiResponse.Error("Email already registered", 400));
-                
-            var user = new User { UserName = dto.Email, Email = dto.Email, FullName = dto.FullName, Role = dto.Role };
-            var result = await _userManager.CreateAsync(user, dto.Password);
-            
-            if (!result.Succeeded) 
-            {
-                var errors = string.Join(", ", result.Errors.Select(e => e.Description));
-                return BadRequest(ApiResponse.Error(errors, 400));
-            }
-            
-            await _userManager.AddToRoleAsync(user, dto.Role);
-            
-            var userDto = new UserDto
-            {
-                Id = user.Id,
-                Email = user.Email,
-                FullName = user.FullName,
-                Role = user.Role
-            };
-            
-            return Ok(ApiResponse<UserDto>.Success(userDto, "User registered successfully", 201));
-        }
-
-        [HttpPost("login")]
-        public async Task<IActionResult> Login([FromBody] LoginDto dto)
-        {
-            var user = await _userManager.FindByEmailAsync(dto.Email);
-            if (user == null) return Unauthorized(ApiResponse.Error("Invalid email or password", 401));
-            
-            var result = await _signInManager.CheckPasswordSignInAsync(user, dto.Password, false);
-            if (!result.Succeeded) return Unauthorized(ApiResponse.Error("Invalid email or password", 401));
-            
-            var token = GenerateJwtToken(user);
-            
-            return Ok(ApiResponse<object>.Success(new { token }, "Login successful", 200));
-        }
+       
 
         [HttpGet("google-callback")]
         public async Task<IActionResult> GoogleCallback()
@@ -242,17 +195,5 @@ namespace Course_management.Controllers
             return new JwtSecurityTokenHandler().WriteToken(token);
         }
     }
-
-    public class RegisterDto
-    {
-        public string Email { get; set; }
-        public string Password { get; set; }
-        public string FullName { get; set; }
-        public string Role { get; set; } // Student, Tutor, Admin
-    }
-    public class LoginDto
-    {
-        public string Email { get; set; }
-        public string Password { get; set; }
-    }
+   
 }

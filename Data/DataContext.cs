@@ -16,6 +16,10 @@ namespace Course_management.Data
         public DbSet<Enrollment> Enrollments { get; set; }
         public DbSet<Review> Reviews { get; set; }
         public DbSet<Payment> Payments { get; set; }
+        public DbSet<CourseProgress> CourseProgresses { get; set; }
+        public DbSet<CourseTask> CourseTasks { get; set; }
+        public DbSet<TaskSubmission> TaskSubmissions { get; set; }
+        public DbSet<TaskAttachment> TaskAttachments { get; set; }
 
         protected override void OnModelCreating(ModelBuilder builder)
         {
@@ -56,6 +60,83 @@ namespace Course_management.Data
                 .WithMany()
                 .HasForeignKey(p => p.CourseId)
                 .OnDelete(DeleteBehavior.Restrict);
+
+            // Configure decimal precision for SQL Server
+            builder.Entity<Payment>()
+                .Property(p => p.Amount)
+                .HasColumnType("decimal(18,2)");
+
+            // Configure Identity tables for SQL Server compatibility
+            builder.Entity<IdentityRole>()
+                .Property(r => r.Id)
+                .HasMaxLength(450);
+
+            builder.Entity<User>()
+                .Property(u => u.Id)
+                .HasMaxLength(450);
+
+            // Configure CourseProgress relationships
+            builder.Entity<CourseProgress>()
+                .HasOne(cp => cp.User)
+                .WithMany(u => u.CourseProgresses)
+                .HasForeignKey(cp => cp.UserId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            builder.Entity<CourseProgress>()
+                .HasOne(cp => cp.Course)
+                .WithMany(c => c.CourseProgresses)
+                .HasForeignKey(cp => cp.CourseId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // Configure CourseTask relationships
+            builder.Entity<CourseTask>()
+                .HasOne(ct => ct.Course)
+                .WithMany(c => c.CourseTasks)
+                .HasForeignKey(ct => ct.CourseId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            builder.Entity<CourseTask>()
+                .HasOne(ct => ct.CreatedByTutor)
+                .WithMany(u => u.CreatedTasks)
+                .HasForeignKey(ct => ct.CreatedByTutorId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // Configure TaskSubmission relationships
+            builder.Entity<TaskSubmission>()
+                .HasOne(ts => ts.Task)
+                .WithMany(ct => ct.TaskSubmissions)
+                .HasForeignKey(ts => ts.TaskId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            builder.Entity<TaskSubmission>()
+                .HasOne(ts => ts.Student)
+                .WithMany(u => u.TaskSubmissions)
+                .HasForeignKey(ts => ts.StudentId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            builder.Entity<TaskSubmission>()
+                .HasOne(ts => ts.GradedByTutor)
+                .WithMany(u => u.GradedSubmissions)
+                .HasForeignKey(ts => ts.GradedByTutorId)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            // Configure TaskAttachment relationships
+            builder.Entity<TaskAttachment>()
+                .HasOne(ta => ta.TaskSubmission)
+                .WithMany(ts => ts.Attachments)
+                .HasForeignKey(ta => ta.TaskSubmissionId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            builder.Entity<TaskAttachment>()
+                .HasOne(ta => ta.UploadedByUser)
+                .WithMany(u => u.UploadedAttachments)
+                .HasForeignKey(ta => ta.UploadedByUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // Configure decimal precision for database compatibility
+            builder.Entity<CourseProgress>()
+                .Property(cp => cp.ProgressPercentage)
+                .HasColumnType("decimal(5,2)");
         }
 
         public static async Task SeedData(IServiceProvider serviceProvider)

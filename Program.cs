@@ -15,12 +15,15 @@ using Course_management.Data;
 
 var builder = WebApplication.CreateBuilder(args);
 
- // Configure Kestrel for Render deployment
-builder.WebHost.ConfigureKestrel(options =>
+// Configure Kestrel for Render deployment (production only)
+if (builder.Environment.IsProduction())
 {
-    var port = Environment.GetEnvironmentVariable("PORT") ?? "10000";
-    options.ListenAnyIP(int.Parse(port));
-});
+    builder.WebHost.ConfigureKestrel(options =>
+    {
+        var port = Environment.GetEnvironmentVariable("PORT") ?? "10000";
+        options.ListenAnyIP(int.Parse(port));
+    });
+}
 
 // Add services to the container.
 
@@ -121,8 +124,17 @@ static string ConvertDatabaseUrl(string databaseUrl)
     }
 }
 
-builder.Services.AddDbContext<Course_management.Data.DataContext>(options =>
-    options.UseNpgsql(connectionString));
+// Configure database based on environment
+if (builder.Environment.IsProduction())
+{
+    builder.Services.AddDbContext<Course_management.Data.DataContext>(options =>
+        options.UseNpgsql(connectionString));
+}
+else
+{
+    builder.Services.AddDbContext<Course_management.Data.DataContext>(options =>
+        options.UseSqlServer(connectionString));
+}
 builder.Services.AddIdentity<Course_management.Models.User, Microsoft.AspNetCore.Identity.IdentityRole>()
     .AddEntityFrameworkStores<Course_management.Data.DataContext>()
     .AddDefaultTokenProviders();
@@ -213,59 +225,59 @@ app.MapGet("/health", () => "Healthy");
 app.MapGet("/", () => Results.Redirect("/swagger"));
 
 // Run database migrations automatically
-try
-{
-    using (var scope = app.Services.CreateScope())
-    {
-        var context = scope.ServiceProvider.GetRequiredService<DataContext>();
-        var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
+//try
+//{
+//    using (var scope = app.Services.CreateScope())
+//    {
+//        var context = scope.ServiceProvider.GetRequiredService<DataContext>();
+//        var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
         
-        logger.LogInformation("Starting database migration...");
+//        logger.LogInformation("Starting database migration...");
         
-        // Log connection string info for debugging (without exposing sensitive data)
-        var dbConnection = context.Database.GetDbConnection();
-        logger.LogInformation("Database provider: {Provider}", context.Database.ProviderName);
-        logger.LogInformation("Connection string configured: {HasConnectionString}", !string.IsNullOrEmpty(dbConnection.ConnectionString));
+//        // Log connection string info for debugging (without exposing sensitive data)
+//        var dbConnection = context.Database.GetDbConnection();
+//        logger.LogInformation("Database provider: {Provider}", context.Database.ProviderName);
+//        logger.LogInformation("Connection string configured: {HasConnectionString}", !string.IsNullOrEmpty(dbConnection.ConnectionString));
         
-        if (string.IsNullOrEmpty(dbConnection.ConnectionString))
-        {
-            logger.LogError("Connection string is null or empty!");
+//        if (string.IsNullOrEmpty(dbConnection.ConnectionString))
+//        {
+//            logger.LogError("Connection string is null or empty!");
             
-            // Log environment variables for debugging
-            var databaseUrl = Environment.GetEnvironmentVariable("DATABASE_URL");
-            logger.LogInformation("DATABASE_URL environment variable: {HasDatabaseUrl}", !string.IsNullOrEmpty(databaseUrl));
+//            // Log environment variables for debugging
+//            var databaseUrl = Environment.GetEnvironmentVariable("DATABASE_URL");
+//            logger.LogInformation("DATABASE_URL environment variable: {HasDatabaseUrl}", !string.IsNullOrEmpty(databaseUrl));
             
-            if (!string.IsNullOrEmpty(databaseUrl))
-            {
-                logger.LogInformation("DATABASE_URL length: {Length}", databaseUrl.Length);
-                logger.LogInformation("DATABASE_URL starts with: {Prefix}", databaseUrl.Substring(0, Math.Min(10, databaseUrl.Length)));
-            }
+//            if (!string.IsNullOrEmpty(databaseUrl))
+//            {
+//                logger.LogInformation("DATABASE_URL length: {Length}", databaseUrl.Length);
+//                logger.LogInformation("DATABASE_URL starts with: {Prefix}", databaseUrl.Substring(0, Math.Min(10, databaseUrl.Length)));
+//            }
             
-            throw new InvalidOperationException("Database connection string is not properly configured.");
-        }
+//            throw new InvalidOperationException("Database connection string is not properly configured.");
+//        }
         
-        // Test database connection before migration
-        logger.LogInformation("Testing database connection...");
-        await context.Database.CanConnectAsync();
-        logger.LogInformation("Database connection successful.");
+//        // Test database connection before migration
+//        logger.LogInformation("Testing database connection...");
+//        await context.Database.CanConnectAsync();
+//        logger.LogInformation("Database connection successful.");
         
-        // Ensure database is created and apply any pending migrations
-        await context.Database.MigrateAsync();
+//        // Ensure database is created and apply any pending migrations
+//        await context.Database.MigrateAsync();
         
-        logger.LogInformation("Database migration completed successfully.");
+//        logger.LogInformation("Database migration completed successfully.");
         
-        // Seed database with test data
-        await DataContext.SeedData(app.Services);
+//        // Seed database with test data
+//        await DataContext.SeedData(app.Services);
         
-        logger.LogInformation("Database seeding completed.");
-    }
-}
-catch (Exception ex)
-{
-    var logger = app.Services.GetRequiredService<ILogger<Program>>();
-    logger.LogError(ex, "An error occurred during database migration: {Message}", ex.Message);
-    throw;
-}
+//        logger.LogInformation("Database seeding completed.");
+//    }
+//}
+//catch (Exception ex)
+//{
+//    var logger = app.Services.GetRequiredService<ILogger<Program>>();
+//    logger.LogError(ex, "An error occurred during database migration: {Message}", ex.Message);
+//    throw;
+//}
 
 app.MapControllers();
 
