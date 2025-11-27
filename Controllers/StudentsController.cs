@@ -89,14 +89,84 @@ namespace Course_management.Controllers
                 })
                 .ToList();
 
+            // Get learning streak data
+            var learningStreak = await _context.LearningStreaks
+                .FirstOrDefaultAsync(ls => ls.StudentId == userId);
+
+            // Get certificates
+            var certificates = await _context.Certificates
+                .Include(c => c.Course)
+                .Where(c => c.StudentId == userId && c.IsActive)
+                .OrderByDescending(c => c.IssuedDate)
+                .Take(3)
+                .Select(c => new CertificateDto
+                {
+                    Id = c.Id,
+                    StudentId = c.StudentId,
+                    CourseId = c.CourseId,
+                    CourseTitle = c.Course.Title,
+                    CertificateNumber = c.CertificateNumber,
+                    Title = c.CertificateName,
+                    Description = c.Description,
+                    CertificateUrl = c.CertificateUrl,
+                    IssuedAt = c.IssuedDate,
+                    IsActive = c.IsActive
+                })
+                .ToListAsync();
+
+            // Get personal task statistics
+            var personalTasks = await _context.StudentTasks
+                .Where(st => st.StudentId == userId)
+                .ToListAsync();
+
+            // Calculate current level based on completed courses and certificates
+            string currentLevel = "Beginner";
+            var completedCoursesCount = courseProgresses.Count(cp => cp.IsCompleted);
+            if (completedCoursesCount >= 10) currentLevel = "Expert";
+            else if (completedCoursesCount >= 5) currentLevel = "Advanced";
+            else if (completedCoursesCount >= 2) currentLevel = "Intermediate";
+
             var dashboardData = new StudentDashboardDto
             {
+                // Existing properties
                 TotalEnrolledCourses = enrollments.Count,
                 CompletedCourses = courseProgresses.Count(cp => cp.IsCompleted),
                 InProgressCourses = courseProgresses.Count(cp => !cp.IsCompleted),
                 PendingTasks = pendingTasks,
                 RecentProgress = recentProgress,
-                UpcomingTasks = upcomingTasks
+                UpcomingTasks = upcomingTasks,
+                
+                // New dashboard features
+                CurrentLevel = currentLevel,
+                TotalLearningHours = learningStreak?.TotalLearningTimeHours ?? 0,
+                TotalCertificatesEarned = certificates.Count,
+                CurrentLearningStreak = learningStreak?.CurrentStreakDays ?? 0,
+                LongestLearningStreak = learningStreak?.LongestStreakDays ?? 0,
+                
+                // Personal task management summary
+                TotalPersonalTasks = personalTasks.Count,
+                CompletedPersonalTasks = personalTasks.Count(t => t.IsCompleted),
+                OverduePersonalTasks = personalTasks.Count(t => t.DueDate.HasValue && t.DueDate.Value < DateTime.UtcNow && !t.IsCompleted),
+                
+                // Additional collections
+                RecentCertificates = certificates,
+                LearningStreak = learningStreak != null ? new LearningStreakDto
+                {
+                    Id = learningStreak.Id,
+                    StudentId = learningStreak.StudentId,
+                    CurrentStreakDays = learningStreak.CurrentStreakDays,
+                    CurrentStreakStartDate = learningStreak.CurrentStreakStartDate,
+                    LastActivityDate = learningStreak.LastActivityDate,
+                    LongestStreakDays = learningStreak.LongestStreakDays,
+                    LongestStreakStartDate = learningStreak.LongestStreakStartDate,
+                    LongestStreakEndDate = learningStreak.LongestStreakEndDate,
+                    TotalActiveDays = learningStreak.TotalActiveDays,
+                    TotalLearningHours = learningStreak.TotalLearningHours,
+                    TotalLearningMinutes = learningStreak.TotalLearningMinutes,
+                    TotalLearningTimeHours = learningStreak.TotalLearningTimeHours,
+                    CreatedAt = learningStreak.CreatedAt,
+                    UpdatedAt = learningStreak.UpdatedAt
+                } : null
             };
 
             return Ok(ApiResponse<StudentDashboardDto>.Success(dashboardData, "Dashboard data retrieved successfully", 200));

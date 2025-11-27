@@ -20,6 +20,13 @@ namespace Course_management.Data
         public DbSet<CourseTask> CourseTasks { get; set; }
         public DbSet<TaskSubmission> TaskSubmissions { get; set; }
         public DbSet<TaskAttachment> TaskAttachments { get; set; }
+        public DbSet<PasswordResetToken> PasswordResetTokens { get; set; }
+        public DbSet<CourseContent> CourseContents { get; set; }
+        
+        // New DbSets for dashboard features
+        public DbSet<Certificate> Certificates { get; set; }
+        public DbSet<LearningStreak> LearningStreaks { get; set; }
+        public DbSet<StudentTask> StudentTasks { get; set; }
 
         protected override void OnModelCreating(ModelBuilder builder)
         {
@@ -137,6 +144,51 @@ namespace Course_management.Data
             builder.Entity<CourseProgress>()
                 .Property(cp => cp.ProgressPercentage)
                 .HasColumnType("decimal(5,2)");
+
+            // Configure PasswordResetToken relationships
+            builder.Entity<PasswordResetToken>()
+                .HasOne(prt => prt.User)
+                .WithMany()
+                .HasForeignKey(prt => prt.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // Configure Certificate relationships
+            builder.Entity<Certificate>()
+                .HasOne(c => c.User)
+                .WithMany()
+                .HasForeignKey(c => c.StudentId)  // This was missing
+                .OnDelete(DeleteBehavior.Restrict);
+
+            builder.Entity<Certificate>()
+                .HasOne(c => c.Course)
+                .WithMany()
+                .HasForeignKey(c => c.CourseId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+           
+
+            // Configure LearningStreak relationships
+            builder.Entity<LearningStreak>()
+                .HasOne(ls => ls.Student)
+                .WithOne(u => u.LearningStreak)
+                .HasForeignKey<LearningStreak>(ls => ls.StudentId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // Configure StudentTask relationships
+            builder.Entity<StudentTask>()
+                .HasOne(st => st.Student)
+                .WithMany(u => u.StudentTasks)
+                .HasForeignKey(st => st.StudentId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // Configure enum conversions
+            builder.Entity<StudentTask>()
+                .Property(st => st.Priority)
+                .HasConversion<int>();
+
+            builder.Entity<StudentTask>()
+                .Property(st => st.Category)
+                .HasConversion<int>();
         }
 
         public static async Task SeedData(IServiceProvider serviceProvider)

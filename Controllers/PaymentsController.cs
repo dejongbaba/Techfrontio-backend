@@ -10,6 +10,10 @@ using System.Linq;
 using System.Collections.Generic;
 using System.Security.Claims;
 using System;
+using Course_management.Interfaces;
+using System.IO;
+using System.Text.Json;
+using System.Threading.Tasks;
 
 namespace Course_management.Controllers
 {
@@ -18,11 +22,13 @@ namespace Course_management.Controllers
     [Authorize] // All payment endpoints require authentication
     public class PaymentsController : ControllerBase
     {
+        private readonly IPaystackService _paystackService;
         private readonly DataContext _context;
         private readonly UserManager<User> _userManager;
 
-        public PaymentsController(DataContext context, UserManager<User> userManager)
+        public PaymentsController(IPaystackService paystackService, DataContext context, UserManager<User> userManager)
         {
+            _paystackService = paystackService;
             _context = context;
             _userManager = userManager;
         }
@@ -280,6 +286,98 @@ namespace Course_management.Controllers
             await _context.SaveChangesAsync();
 
             return Ok(ApiResponse.Success("Payment and related data deleted successfully", 200));
+        }
+
+        [HttpPost("initiate")]
+        [Authorize]
+        public async Task<IActionResult> InitiatePayment([FromBody] PaymentInitiationDto paymentDto)
+        {
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            var user = await _userManager.FindByIdAsync(userId);
+            var course = await _context.Courses.Include(c => c.Tutor).FirstOrDefaultAsync(c => c.Id == paymentDto.CourseId);
+        
+            if (course == null) return NotFound(ApiResponse.Error("Course not found", 404));
+        
+            var amountInKobo = (int)(course.Price * 100);
+        
+            var transactionRequest = new TransactionInitializeRequestDto
+            {
+                Email = user.Email,
+                Amount = amountInKobo.ToString(),
+                Callback_url = paymentDto.CallbackUrl,
+                Subaccount = course.Tutor.PaystackSubaccountId,
+                Metadata = new Dictionary<string, object>
+                {
+                    { "course_id", course.Id },
+                    { "user_id", userId }
+                }
+            };
+        
+            var transactionResponse = await _paystackService.InitializeTransaction(transactionRequest);
+        
+            var payment = new Payment
+            {
+                UserId = userId,
+                CourseId = course.Id,
+                Amount = course.Price,
+                TransactionId = transactionResponse.Data.Reference,
+                Status = "Pending",
+                PaymentMethod = "Paystack"
+            };
+        
+            _context.Payments.Add(payment);
+            await _context.SaveChangesAsync();
+        
+            return Ok(ApiResponse<TransactionInitializeResponseDto.TransactionData>.Success(transactionResponse.Data, "Payment initiated successfully", 200));
+        }
+
+        [HttpPost("webhook")]
+        [AllowAnonymous] // Webhooks are not authenticated
+        public async Task<IActionResult> PaystackWebhook()
+        {
+            var requestBody = await new StreamReader(Request.Body).ReadToEndAsync();
+            var signature = Request.Headers["x-paystack-signature"].ToString();
+        
+            if (!_paystackService.VerifySignature(signature, requestBody))
+            {
+                return Unauthorized(ApiResponse.Error("Invalid signature", 401));
+            }
+        
+            var webhookEvent = JsonDocument.Parse(requestBody).RootElement;
+            var eventType = webhookEvent.GetProperty("event").GetString();
+        
+            if (eventType == "charge.success")
+            {
+                var reference = webhookEvent.GetProperty("data").GetProperty("reference").GetString();
+                var payment = await _context.Payments.FirstOrDefaultAsync(p => p.Reference == reference);
+        
+                if (payment != null && payment.Status == "Pending")
+                {
+                    var verification = await _paystackService.VerifyTransaction(reference);
+                    if (verification.Data.Status == "success")
+                    {
+                        payment.Status = "Completed";
+        
+                        var enrollment = new Enrollment
+                        {
+                            UserId = payment.UserId,
+                            CourseId = payment.CourseId,
+                            EnrollmentDate = System.DateTime.UtcNow
+                        };
+                        _context.Enrollments.Add(enrollment);
+        
+                        await _context.SaveChangesAsync();
+                    }
+                }
+            }
+        
+            return Ok();
+        }
+
+        public class PaymentInitiationDto
+        {
+            public int CourseId { get; set; }
+            public string CallbackUrl { get; set; }
         }
     }
 }

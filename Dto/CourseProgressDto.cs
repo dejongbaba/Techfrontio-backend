@@ -32,7 +32,17 @@ namespace Course_management.Dto
         public int CompletedCourses { get; set; }
         public int InProgressCourses { get; set; }
         public int PendingTasks { get; set; }
+        public decimal TotalLearningHours { get; set; }
+        public int TotalPersonalTasks { get; set; }
+        public int CompletedPersonalTasks { get; set; }
+        public int OverduePersonalTasks { get; set; }
+        public int TotalCertificatesEarned { get; set; }
+        public int CurrentLearningStreak { get; set; }
+        public int LongestLearningStreak { get; set; }
+        public String CurrentLevel { get; set; }
         public List<CourseProgressDto> RecentProgress { get; set; }
         public List<CourseTaskDto> UpcomingTasks { get; set; }
+        public List<CertificateDto> RecentCertificates { get; set; }
+        public LearningStreakDto LearningStreak { get; set; }
     }
 }

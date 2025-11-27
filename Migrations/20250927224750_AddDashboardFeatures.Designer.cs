@@ -4,6 +4,7 @@ using Course_management.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,10 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace Course_management.Migrations
 {
     [DbContext(typeof(DataContext))]
-    partial class DataContextModelSnapshot : ModelSnapshot
+    [Migration("20250927224750_AddDashboardFeatures")]
+    partial class AddDashboardFeatures
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -30,10 +32,8 @@ namespace Course_management.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"), 1L, 1);
 
-                    b.Property<string>("CertificateName")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
+                    b.Property<string>("CertificateFilePath")
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("CertificateNumber")
                         .IsRequired()
@@ -49,21 +49,31 @@ namespace Course_management.Migrations
                         .HasColumnType("datetime2");
 
                     b.Property<string>("Description")
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
+                        .HasColumnType("nvarchar(max)");
 
-                    b.Property<DateTime?>("ExpiryDate")
-                        .HasColumnType("datetime2");
+                    b.Property<decimal>("FinalScore")
+                        .HasColumnType("decimal(5,2)");
+
+                    b.Property<string>("Grade")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<bool>("IsActive")
                         .HasColumnType("bit");
 
-                    b.Property<DateTime>("IssuedDate")
+                    b.Property<DateTime>("IssuedAt")
                         .HasColumnType("datetime2");
 
                     b.Property<string>("StudentId")
                         .IsRequired()
                         .HasColumnType("nvarchar(450)");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime2");
 
                     b.HasKey("Id");
 
@@ -82,18 +92,9 @@ namespace Course_management.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"), 1L, 1);
 
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime2");
-
                     b.Property<string>("Description")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
-
-                    b.Property<decimal>("Price")
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<int>("Status")
-                        .HasColumnType("int");
 
                     b.Property<string>("Title")
                         .IsRequired()
@@ -102,9 +103,6 @@ namespace Course_management.Migrations
                     b.Property<string>("TutorId")
                         .IsRequired()
                         .HasColumnType("nvarchar(450)");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("datetime2");
 
                     b.Property<string>("VideoContentUrl")
                         .HasColumnType("nvarchar(max)");
@@ -120,46 +118,6 @@ namespace Course_management.Migrations
                     b.HasIndex("TutorId");
 
                     b.ToTable("Courses");
-                });
-
-            modelBuilder.Entity("Course_management.Models.CourseContent", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"), 1L, 1);
-
-                    b.Property<string>("ContentType")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<int>("CourseId")
-                        .HasColumnType("int");
-
-                    b.Property<double>("Duration")
-                        .HasColumnType("float");
-
-                    b.Property<int>("Order")
-                        .HasColumnType("int");
-
-                    b.Property<string>("PublicId")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("SecureUrl")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("Title")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("CourseId");
-
-                    b.ToTable("CourseContents");
                 });
 
             modelBuilder.Entity("Course_management.Models.CourseProgress", b =>
@@ -280,9 +238,6 @@ namespace Course_management.Migrations
                     b.Property<int>("CourseId")
                         .HasColumnType("int");
 
-                    b.Property<DateTime>("EnrollmentDate")
-                        .HasColumnType("datetime2");
-
                     b.Property<string>("UserId")
                         .IsRequired()
                         .HasColumnType("nvarchar(450)");
@@ -307,16 +262,22 @@ namespace Course_management.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
 
-                    b.Property<int>("CurrentStreak")
+                    b.Property<int>("CurrentStreakDays")
                         .HasColumnType("int");
+
+                    b.Property<DateTime?>("CurrentStreakStartDate")
+                        .HasColumnType("datetime2");
 
                     b.Property<DateTime?>("LastActivityDate")
                         .HasColumnType("datetime2");
 
-                    b.Property<int>("LongestStreak")
+                    b.Property<int>("LongestStreakDays")
                         .HasColumnType("int");
 
-                    b.Property<DateTime?>("StreakStartDate")
+                    b.Property<DateTime?>("LongestStreakEndDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("LongestStreakStartDate")
                         .HasColumnType("datetime2");
 
                     b.Property<string>("StudentId")
@@ -324,6 +285,9 @@ namespace Course_management.Migrations
                         .HasColumnType("nvarchar(450)");
 
                     b.Property<int>("TotalActiveDays")
+                        .HasColumnType("int");
+
+                    b.Property<int>("TotalLearningHours")
                         .HasColumnType("int");
 
                     b.Property<int>("TotalLearningMinutes")
@@ -402,13 +366,6 @@ namespace Course_management.Migrations
                     b.Property<string>("ReceiptUrl")
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<string>("Reference")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("SplitMeta")
-                        .HasColumnType("nvarchar(max)");
-
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
@@ -445,14 +402,8 @@ namespace Course_management.Migrations
                     b.Property<int>("CourseId")
                         .HasColumnType("int");
 
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime2");
-
                     b.Property<int>("Rating")
                         .HasColumnType("int");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("datetime2");
 
                     b.Property<string>("UserId")
                         .IsRequired()
@@ -655,9 +606,6 @@ namespace Course_management.Migrations
                     b.Property<string>("PasswordHash")
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<string>("PaystackSubaccountId")
-                        .HasColumnType("nvarchar(max)");
-
                     b.Property<string>("PhoneNumber")
                         .HasColumnType("nvarchar(max)");
 
@@ -833,15 +781,15 @@ namespace Course_management.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.HasOne("Course_management.Models.User", "User")
-                        .WithMany()
+                    b.HasOne("Course_management.Models.User", "Student")
+                        .WithMany("Certificates")
                         .HasForeignKey("StudentId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.Navigation("Course");
 
-                    b.Navigation("User");
+                    b.Navigation("Student");
                 });
 
             modelBuilder.Entity("Course_management.Models.Course", b =>
@@ -853,17 +801,6 @@ namespace Course_management.Migrations
                         .IsRequired();
 
                     b.Navigation("Tutor");
-                });
-
-            modelBuilder.Entity("Course_management.Models.CourseContent", b =>
-                {
-                    b.HasOne("Course_management.Models.Course", "Course")
-                        .WithMany("CourseContents")
-                        .HasForeignKey("CourseId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Course");
                 });
 
             modelBuilder.Entity("Course_management.Models.CourseProgress", b =>
@@ -1092,8 +1029,6 @@ namespace Course_management.Migrations
 
             modelBuilder.Entity("Course_management.Models.Course", b =>
                 {
-                    b.Navigation("CourseContents");
-
                     b.Navigation("CourseProgresses");
 
                     b.Navigation("CourseTasks");
@@ -1115,6 +1050,8 @@ namespace Course_management.Migrations
 
             modelBuilder.Entity("Course_management.Models.User", b =>
                 {
+                    b.Navigation("Certificates");
+
                     b.Navigation("CourseProgresses");
 
                     b.Navigation("Courses");

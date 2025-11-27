@@ -31,10 +31,14 @@ namespace Course_management.Models
         public string PaymentMethod { get; set; } // e.g., "Credit Card", "PayPal", etc.
 
         [Required]
-        public string TransactionId { get; set; } // External payment processor transaction ID
+        public string Reference { get; set; } // Paystack transaction reference
+
+        public string TransactionId { get; set; } 
 
         [Required]
         public string Status { get; set; } // "Pending", "Completed", "Failed", "Refunded"
+
+        public string? SplitMeta { get; set; } // Store split payment info as JSON
 
         public string? ReceiptUrl { get; set; } // URL to payment receipt if available
 

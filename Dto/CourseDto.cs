@@ -25,6 +25,8 @@ namespace Course_management.Dto
         public string? VideoCoverImageUrl { get; set; }
         public string? VideoContentUrl { get; set; }
         public int? VideoDurationMinutes { get; set; }
+        public decimal Price { get; set; }
+
     }
 
     public class CourseUpdateDto
@@ -34,6 +36,7 @@ namespace Course_management.Dto
         public string? VideoCoverImageUrl { get; set; }
         public string? VideoContentUrl { get; set; }
         public int? VideoDurationMinutes { get; set; }
+        public decimal Price { get; set; }
     }
 
     public class CourseDetailDto

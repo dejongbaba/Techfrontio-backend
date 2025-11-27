@@ -7,6 +7,7 @@ namespace Course_management.Models
     {
         public string FullName { get; set; }
         public string Role { get; set; } // Student, Tutor, Admin
+        public string? PaystackSubaccountId { get; set; }
         
         // Navigation properties
         public ICollection<Enrollment> Enrollments { get; set; }
@@ -17,5 +18,9 @@ namespace Course_management.Models
         public ICollection<TaskSubmission> TaskSubmissions { get; set; } // For students
         public ICollection<TaskSubmission> GradedSubmissions { get; set; } // For tutors
         public ICollection<TaskAttachment> UploadedAttachments { get; set; }
+
+        // Add missing navigation property
+        public virtual LearningStreak LearningStreak { get; set; }
+        public ICollection<StudentTask> StudentTasks { get; set; }
     }
 }

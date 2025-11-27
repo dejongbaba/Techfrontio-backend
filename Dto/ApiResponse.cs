@@ -20,7 +20,7 @@ namespace Course_management.Dto
             };
         }
 
-        public static ApiResponse<T> Error(string message = "An error occurred", int code = 400, T data = default)
+        public static ApiResponse<T> Error(string message = "An error occurred", int code = 400, T? data = default)
         {
             return new ApiResponse<T>
             {

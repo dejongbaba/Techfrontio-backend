@@ -9,6 +9,8 @@ using System.Threading.Tasks;
 using System.Linq;
 using System.Collections.Generic;
 using System.Security.Claims;
+using Course_management.Interfaces;
+using Microsoft.AspNetCore.Http;
 
 namespace Course_management.Controllers
 {
@@ -18,11 +20,13 @@ namespace Course_management.Controllers
     {
         private readonly DataContext _context;
         private readonly UserManager<User> _userManager;
+        private readonly ICloudinaryService _cloudinaryService;
 
-        public CoursesController(DataContext context, UserManager<User> userManager)
+        public CoursesController(DataContext context, UserManager<User> userManager, ICloudinaryService cloudinaryService)
         {
             _context = context;
             _userManager = userManager;
+            _cloudinaryService = cloudinaryService;
         }
 
         // GET: api/courses - List all courses (public)
@@ -33,6 +37,7 @@ namespace Course_management.Controllers
                 .Include(c => c.Tutor)
                 .Include(c => c.Enrollments)
                 .Include(c => c.Reviews)
+                .Where(c => c.Status == CourseStatus.Approved) // Only show approved courses
                 .ToListAsync();
 
             var courseDtos = courses.Select(c => new CourseDto
@@ -93,6 +98,67 @@ namespace Course_management.Controllers
             return Ok(ApiResponse<CourseDetailDto>.Success(courseDetailDto, "Course retrieved successfully", 200));
         }
 
+        [HttpPost("{id}/content")]
+        [Authorize(Roles = "Tutor")]
+        [Consumes("multipart/form-data")]
+        public async Task<IActionResult> UploadCourseContent(int id, [FromForm] UploadCourseContentDto dto)
+        {
+            var course = await _context.Courses.FindAsync(id);
+            if (course == null) return NotFound(ApiResponse.Error("Course not found", 404));
+
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (course.TutorId != userId)
+            {
+                return Forbid();
+            }
+
+            if (dto.File == null || dto.File.Length == 0)
+            {
+                return BadRequest(ApiResponse.Error("No file uploaded or file is empty", 400));
+            }
+
+            var uploadResult = await _cloudinaryService.UploadVideoAsync(dto.File!);
+
+            var courseContent = new CourseContent
+            {
+                CourseId = id,
+                Title = dto.Title,
+                PublicId = uploadResult.PublicId,
+                SecureUrl = uploadResult.SecureUrl.ToString(),
+                ContentType = dto.ContentType,
+                Duration = uploadResult.Duration,
+                Order = dto.Order
+            };
+
+            _context.CourseContents.Add(courseContent);
+            await _context.SaveChangesAsync();
+
+            return Ok(ApiResponse<CourseContent>.Success(courseContent, "Content uploaded successfully", 200));
+        }
+
+        [HttpGet("{id}/stream")]
+        [Authorize]
+        public async Task<IActionResult> GetStreamUrl(int id)
+        {
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            var isEnrolled = await _context.Enrollments.AnyAsync(e => e.CourseId == id && e.UserId == userId);
+
+            if (!isEnrolled)
+            {
+                return Forbid();
+            }
+
+            var courseContent = await _context.CourseContents.FirstOrDefaultAsync(cc => cc.CourseId == id && cc.ContentType == "video");
+            if (courseContent == null)
+            {
+                return NotFound(ApiResponse.Error("No video content found for this course", 404));
+            }
+
+            var secureUrl = _cloudinaryService.GetSecureVideoUrl(courseContent.PublicId);
+
+            return Ok(ApiResponse<string>.Success(secureUrl, "Secure stream URL generated", 200));
+        }
+
         // POST api/courses - Create a new course (Tutor/Admin only)
         [HttpPost]
         [Authorize(Roles = "Tutor,Admin")]
@@ -109,7 +175,12 @@ namespace Course_management.Controllers
             {
                 Title = courseDto.Title,
                 Description = courseDto.Description,
-                TutorId = userId
+                TutorId = userId,
+                Price = courseDto.Price,
+                VideoCoverImageUrl = courseDto.VideoCoverImageUrl,
+                VideoContentUrl = courseDto.VideoContentUrl,
+                VideoDurationMinutes = courseDto.VideoDurationMinutes,
+                Status = CourseStatus.Pending // Default status
             };
 
             _context.Courses.Add(course);
@@ -140,6 +211,10 @@ namespace Course_management.Controllers
 
             course.Title = courseDto.Title;
             course.Description = courseDto.Description;
+            course.Price = courseDto.Price;
+            course.VideoCoverImageUrl = courseDto.VideoCoverImageUrl;
+            course.VideoContentUrl = courseDto.VideoContentUrl;
+            course.VideoDurationMinutes = courseDto.VideoDurationMinutes;
 
             await _context.SaveChangesAsync();
 
