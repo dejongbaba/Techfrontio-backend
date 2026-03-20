@@ -9,6 +9,7 @@ namespace Course_management.Dto
         public string UserName { get; set; }
         public int CourseId { get; set; }
         public string CourseTitle { get; set; }
+        public DateTime CreatedAt { get; set; }
     }
 
     public class ReviewCreateDto

@@ -36,6 +36,10 @@ namespace Course_management.Models
         // Completion status
         public bool IsCompleted { get; set; } = false;
         public DateTime? CompletedAt { get; set; }
+        
+        // Comma-separated list of completed content IDs (e.g., "1,2,3")
+        public string? CompletedContentIds { get; set; }
+        
         public DateTime CreatedAt { get; set; }
         public DateTime UpdatedAt { get; set; }
     }

@@ -24,6 +24,7 @@ namespace Course_management.Dto
         public int CourseId { get; set; }
         public int WatchedMinutes { get; set; }
         public int LastWatchedPosition { get; set; }
+        public int? CompletedContentId { get; set; } // ID of the content completed
     }
 
     public class StudentDashboardDto

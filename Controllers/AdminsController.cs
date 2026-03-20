@@ -169,6 +169,7 @@ namespace Course_management.Controllers
         public async Task<IActionResult> GetAllCourses()
         {
             var courses = await _context.Courses
+                .AsNoTracking()
                 .Include(c => c.Tutor)
                 .Include(c => c.Enrollments)
                 .Include(c => c.Reviews)
@@ -181,10 +182,16 @@ namespace Course_management.Controllers
                 Description = c.Description,
                 TutorId = c.TutorId,
                 TutorName = c.Tutor?.FullName,
+                VideoContentUrl = c.VideoContentUrl,
+                VideoCoverImageUrl = c.VideoCoverImageUrl,
+                VideoDurationMinutes = c.VideoDurationMinutes,
                 EnrollmentCount = c.Enrollments?.Count ?? 0,
-                AverageRating = c.Reviews != null && c.Reviews.Any() 
-                    ? c.Reviews.Average(r => r.Rating) 
+                AverageRating = c.Reviews != null && c.Reviews.Any()
+                    ? c.Reviews.Average(r => r.Rating)
                     : 0,
+                Status = c.Status,
+                CreatedAt = c.CreatedAt,
+                UpdatedAt = c.UpdatedAt,
                 Reviews = c.Reviews?.Select(r => new ReviewDto
                 {
                     Id = r.Id,

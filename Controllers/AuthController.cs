@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Identity;
 using Course_management.Models;
 using Microsoft.Extensions.Configuration;
@@ -86,7 +86,17 @@ namespace Course_management.Controllers
             
             var token = GenerateJwtToken(user);
             
-            return Ok(ApiResponse<object>.Success(new { token }, "Login successful", 200));
+            return Ok(ApiResponse<object>.Success(new 
+            { 
+                token,
+                user = new UserDto
+                {
+                    Id = user.Id,
+                    Email = user.Email,
+                    FullName = user.FullName,
+                    Role = user.Role
+                }
+            }, "Login successful", 200));
         }
 
         [HttpGet("google-callback")]

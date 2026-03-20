@@ -3,9 +3,11 @@ using Course_management.Interfaces;
 using Microsoft.Extensions.Configuration;
 using System.Net.Http;
 using System.Net.Http.Headers;
+using System.Net;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Threading.Tasks;
 
 namespace Course_management.Services
@@ -24,14 +26,38 @@ namespace Course_management.Services
 
         public async Task<TransactionInitializeResponseDto> InitializeTransaction(TransactionInitializeRequestDto request)
         {
-            var json = JsonSerializer.Serialize(request);
-            var content = new StringContent(json, Encoding.UTF8, "application/json");
+            var options = new JsonSerializerOptions
+            {
+                DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
+            };
+            async Task<HttpResponseMessage> PostInitialize(TransactionInitializeRequestDto payload)
+            {
+                var json = JsonSerializer.Serialize(payload, options);
+                var content = new StringContent(json, Encoding.UTF8, "application/json");
+                return await _httpClient.PostAsync("transaction/initialize", content);
+            }
 
-            var response = await _httpClient.PostAsync("transaction/initialize", content);
-            response.EnsureSuccessStatusCode();
+            var response = await PostInitialize(request);
+            if (response.StatusCode == HttpStatusCode.NotFound && !string.IsNullOrWhiteSpace(request.Subaccount))
+            {
+                var fallbackRequest = new TransactionInitializeRequestDto
+                {
+                    Email = request.Email,
+                    Amount = request.Amount,
+                    CallbackUrl = request.CallbackUrl,
+                    Metadata = request.Metadata
+                };
+                response = await PostInitialize(fallbackRequest);
+            }
+            if (!response.IsSuccessStatusCode)
+            {
+                var responseBody = await response.Content.ReadAsStringAsync();
+                throw new HttpRequestException($"Paystack initialize failed: {(int)response.StatusCode} {response.ReasonPhrase}. {responseBody}");
+            }
 
             var responseStream = await response.Content.ReadAsStreamAsync();
-            return await JsonSerializer.DeserializeAsync<TransactionInitializeResponseDto>(responseStream);
+            var deserializeOptions = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+            return await JsonSerializer.DeserializeAsync<TransactionInitializeResponseDto>(responseStream, deserializeOptions);
         }
 
         public async Task<TransactionVerifyResponseDto> VerifyTransaction(string reference)
@@ -40,7 +66,8 @@ namespace Course_management.Services
             response.EnsureSuccessStatusCode();
 
             var responseStream = await response.Content.ReadAsStreamAsync();
-            return await JsonSerializer.DeserializeAsync<TransactionVerifyResponseDto>(responseStream);
+            var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+            return await JsonSerializer.DeserializeAsync<TransactionVerifyResponseDto>(responseStream, options);
         }
 
         public bool VerifySignature(string signature, string body)

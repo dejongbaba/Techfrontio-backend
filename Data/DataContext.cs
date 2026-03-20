@@ -22,11 +22,19 @@ namespace Course_management.Data
         public DbSet<TaskAttachment> TaskAttachments { get; set; }
         public DbSet<PasswordResetToken> PasswordResetTokens { get; set; }
         public DbSet<CourseContent> CourseContents { get; set; }
+        public DbSet<CourseSection> CourseSections { get; set; }
         
         // New DbSets for dashboard features
         public DbSet<Certificate> Certificates { get; set; }
         public DbSet<LearningStreak> LearningStreaks { get; set; }
         public DbSet<StudentTask> StudentTasks { get; set; }
+        public DbSet<InterviewQuestion> InterviewQuestions { get; set; }
+        public DbSet<DocumentationPage> DocumentationPages { get; set; }
+        
+        // Quiz DbSets
+        public DbSet<Quiz> Quizzes { get; set; }
+        public DbSet<QuizQuestion> QuizQuestions { get; set; }
+        public DbSet<QuizSubmission> QuizSubmissions { get; set; }
 
         protected override void OnModelCreating(ModelBuilder builder)
         {
@@ -73,6 +81,11 @@ namespace Course_management.Data
                 .Property(p => p.Amount)
                 .HasColumnType("decimal(18,2)");
 
+            // Configure Course.Price precision for SQL Server compatibility
+            builder.Entity<Course>()
+                .Property(c => c.Price)
+                .HasPrecision(18, 2);
+
             // Configure Identity tables for SQL Server compatibility
             builder.Entity<IdentityRole>()
                 .Property(r => r.Id)
@@ -93,6 +106,30 @@ namespace Course_management.Data
                 .HasOne(cp => cp.Course)
                 .WithMany(c => c.CourseProgresses)
                 .HasForeignKey(cp => cp.CourseId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            builder.Entity<Quiz>()
+                .HasOne(q => q.Course)
+                .WithMany()
+                .HasForeignKey(q => q.CourseId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            builder.Entity<QuizQuestion>()
+                .HasOne(qq => qq.Quiz)
+                .WithMany(q => q.Questions)
+                .HasForeignKey(qq => qq.QuizId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            builder.Entity<QuizSubmission>()
+                .HasOne(qs => qs.Quiz)
+                .WithMany(q => q.Submissions)
+                .HasForeignKey(qs => qs.QuizId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            builder.Entity<QuizSubmission>()
+                .HasOne(qs => qs.Student)
+                .WithMany()
+                .HasForeignKey(qs => qs.StudentId)
                 .OnDelete(DeleteBehavior.Restrict);
 
             // Configure CourseTask relationships
@@ -189,6 +226,19 @@ namespace Course_management.Data
             builder.Entity<StudentTask>()
                 .Property(st => st.Category)
                 .HasConversion<int>();
+
+            // Configure CourseSection relationships
+            builder.Entity<CourseSection>()
+                .HasOne(s => s.Course)
+                .WithMany(c => c.CourseSections)
+                .HasForeignKey(s => s.CourseId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            builder.Entity<CourseContent>()
+                .HasOne(cc => cc.Section)
+                .WithMany(s => s.Contents)
+                .HasForeignKey(cc => cc.SectionId)
+                .OnDelete(DeleteBehavior.SetNull);
         }
 
         public static async Task SeedData(IServiceProvider serviceProvider)
@@ -222,21 +272,103 @@ namespace Course_management.Data
                 await userManager.AddToRoleAsync(student, "Student");
 
                 // Seed courses
-                var course1 = new Course { Title = "C# Basics", Description = "Learn the basics of C#.", TutorId = tutor.Id };
-                var course2 = new Course { Title = "ASP.NET Core", Description = "Build web APIs with ASP.NET Core.", TutorId = tutor.Id };
-                context.Courses.AddRange(course1, course2);
+                var course1 = new Course { Title = "C# Basics", Description = "Learn the basics of C#.", TutorId = tutor.Id, Price = 0, Status = CourseStatus.Approved };
+                var course2 = new Course { Title = "ASP.NET Core", Description = "Build web APIs with ASP.NET Core.", TutorId = tutor.Id, Price = 0, Status = CourseStatus.Approved };
+                var course3 = new Course { Title = "Entity Framework Core", Description = "Master data access with EF Core.", TutorId = tutor.Id, Price = 0, Status = CourseStatus.Approved };
+                context.Courses.AddRange(course1, course2, course3);
                 await context.SaveChangesAsync();
 
                 // Seed enrollments
                 var enrollment1 = new Enrollment { UserId = student.Id, CourseId = course1.Id };
                 var enrollment2 = new Enrollment { UserId = student.Id, CourseId = course2.Id };
-                context.Enrollments.AddRange(enrollment1, enrollment2);
+                var enrollment3 = new Enrollment { UserId = student.Id, CourseId = course3.Id };
+                context.Enrollments.AddRange(enrollment1, enrollment2, enrollment3);
                 await context.SaveChangesAsync();
 
                 // Seed reviews
                 var review1 = new Review { Content = "Great course!", Rating = 5, UserId = student.Id, CourseId = course1.Id };
                 var review2 = new Review { Content = "Very helpful.", Rating = 4, UserId = student.Id, CourseId = course2.Id };
-                context.Reviews.AddRange(review1, review2);
+                var review3 = new Review { Content = "Clear explanations.", Rating = 5, UserId = student.Id, CourseId = course3.Id };
+                context.Reviews.AddRange(review1, review2, review3);
+                await context.SaveChangesAsync();
+            }
+
+            // Seed Interview Questions if they don't exist
+            if (!context.InterviewQuestions.Any())
+            {
+                var questions = new[]
+                {
+                    new InterviewQuestion 
+                    { 
+                        Category = "React", 
+                        Difficulty = "Easy", 
+                        QuestionText = "What is the Virtual DOM?", 
+                        AnswerText = "The Virtual DOM is a lightweight copy of the actual DOM. React uses it to improve performance by updating only the changed parts of the actual DOM.", 
+                        CreatedAt = DateTime.UtcNow 
+                    },
+                    new InterviewQuestion 
+                    { 
+                        Category = "React", 
+                        Difficulty = "Medium", 
+                        QuestionText = "Explain the useEffect hook.", 
+                        AnswerText = "useEffect is a hook that lets you perform side effects in function components. It serves the same purpose as componentDidMount, componentDidUpdate, and componentWillUnmount in React classes.", 
+                        CreatedAt = DateTime.UtcNow 
+                    },
+                    new InterviewQuestion 
+                    { 
+                        Category = "C#", 
+                        Difficulty = "Easy", 
+                        QuestionText = "What is the difference between value types and reference types?", 
+                        AnswerText = "Value types hold the data directly (e.g., int, struct), while reference types hold a reference to the data's memory address (e.g., class, string).", 
+                        CreatedAt = DateTime.UtcNow 
+                    },
+                    new InterviewQuestion 
+                    { 
+                        Category = "C#", 
+                        Difficulty = "Hard", 
+                        QuestionText = "What is Dependency Injection?", 
+                        AnswerText = "Dependency Injection is a design pattern used to implement IoC. It allows the creation of dependent objects outside of a class and provides those objects to a class through different ways.", 
+                        CreatedAt = DateTime.UtcNow 
+                    }
+                };
+                context.InterviewQuestions.AddRange(questions);
+                await context.SaveChangesAsync();
+            }
+
+            // Seed Documentation Pages if they don't exist
+            if (!context.DocumentationPages.Any())
+            {
+                var docs = new[]
+                {
+                    new DocumentationPage 
+                    { 
+                        Title = "Introduction", 
+                        Slug = "introduction", 
+                        Category = "Getting Started", 
+                        Content = "# Introduction\n\nWelcome to the Techfrontio Learning Platform. This platform helps you master technical skills through courses, quizzes, and tasks.", 
+                        Order = 1, 
+                        UpdatedAt = DateTime.UtcNow 
+                    },
+                    new DocumentationPage 
+                    { 
+                        Title = "Installation", 
+                        Slug = "installation", 
+                        Category = "Getting Started", 
+                        Content = "# Installation\n\nTo get started, ensure you have the following installed:\n- Node.js\n- .NET SDK\n- Docker", 
+                        Order = 2, 
+                        UpdatedAt = DateTime.UtcNow 
+                    },
+                    new DocumentationPage 
+                    { 
+                        Title = "Course Structure", 
+                        Slug = "course-structure", 
+                        Category = "Guides", 
+                        Content = "# Course Structure\n\nCourses are divided into modules and lessons. Each lesson may contain video content, reading materials, and quizzes.", 
+                        Order = 3, 
+                        UpdatedAt = DateTime.UtcNow 
+                    }
+                };
+                context.DocumentationPages.AddRange(docs);
                 await context.SaveChangesAsync();
             }
         }

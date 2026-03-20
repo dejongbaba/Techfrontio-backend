@@ -44,13 +44,26 @@ namespace Course_management.Controllers
             {
                 Id = c.Id,
                 Title = c.Title,
+                Subtitle = c.Subtitle,
                 Description = c.Description,
+                Category = c.Category,
+                Level = c.Level,
+                Language = c.Language,
+                Tags = c.Tags,
+                Features = c.Features,
                 TutorId = c.TutorId,
                 TutorName = c.Tutor?.FullName,
                 EnrollmentCount = c.Enrollments?.Count ?? 0,
                 AverageRating = c.Reviews != null && c.Reviews.Any() 
                     ? c.Reviews.Average(r => r.Rating) 
-                    : 0
+                    : 0,
+                Price = c.Price,
+                Status = c.Status,
+                CreatedAt = c.CreatedAt,
+                UpdatedAt = c.UpdatedAt,
+                VideoCoverImageUrl = c.VideoCoverImageUrl,
+                VideoContentUrl = c.VideoContentUrl,
+                VideoDurationMinutes = c.VideoDurationMinutes
             }).ToList();
 
             return Ok(ApiResponse<List<CourseDto>>.Success(courseDtos, "Courses retrieved successfully", 200));
@@ -65,6 +78,9 @@ namespace Course_management.Controllers
                 .Include(c => c.Enrollments)
                 .Include(c => c.Reviews)
                 .ThenInclude(r => r.User)
+                .Include(c => c.CourseSections)
+                .ThenInclude(s => s.Contents)
+                .Include(c => c.CourseContents.Where(cc => cc.SectionId == null))
                 .FirstOrDefaultAsync(c => c.Id == id);
 
             if (course == null)
@@ -78,85 +94,288 @@ namespace Course_management.Controllers
                 UserId = r.UserId,
                 UserName = r.User?.FullName,
                 CourseId = r.CourseId,
-                CourseTitle = course.Title
+                CourseTitle = course.Title,
+                CreatedAt = r.CreatedAt
             }).ToList() ?? new List<ReviewDto>();
+
+            var sectionDtos = course.CourseSections?.OrderBy(s => s.Order).Select(s => new CourseSectionDto
+            {
+                Id = s.Id,
+                Title = s.Title,
+                Order = s.Order,
+                Contents = s.Contents.OrderBy(cc => cc.Order).Select(cc => new CourseContentDto
+                {
+                    Id = cc.Id,
+                    Title = cc.Title,
+                    ContentType = cc.ContentType,
+                    Duration = cc.Duration,
+                    Order = cc.Order,
+                    IsCompleted = false,
+                    PublicId = cc.PublicId,
+                    SecureUrl = cc.SecureUrl
+                }).ToList()
+            }).ToList() ?? new List<CourseSectionDto>();
+
+            var unassignedContentDtos = course.CourseContents?
+                .Where(cc => cc.SectionId == null)
+                .OrderBy(cc => cc.Order)
+                .Select(cc => new CourseContentDto
+                {
+                    Id = cc.Id,
+                    Title = cc.Title,
+                    ContentType = cc.ContentType,
+                    Duration = cc.Duration,
+                    Order = cc.Order,
+                    IsCompleted = false,
+                    PublicId = cc.PublicId,
+                    SecureUrl = cc.SecureUrl
+                }).ToList() ?? new List<CourseContentDto>();
 
             var courseDetailDto = new CourseDetailDto
             {
                 Id = course.Id,
                 Title = course.Title,
+                Subtitle = course.Subtitle,
                 Description = course.Description,
+                Category = course.Category,
+                Level = course.Level,
+                Language = course.Language,
+                Tags = course.Tags,
+                Features = course.Features,
                 TutorId = course.TutorId,
                 TutorName = course.Tutor?.FullName,
                 EnrollmentCount = course.Enrollments?.Count ?? 0,
                 AverageRating = course.Reviews != null && course.Reviews.Any() 
                     ? course.Reviews.Average(r => r.Rating) 
                     : 0,
-                Reviews = reviewDtos
+                Price = course.Price,
+                Status = course.Status,
+                CreatedAt = course.CreatedAt,
+                UpdatedAt = course.UpdatedAt,
+                VideoCoverImageUrl = course.VideoCoverImageUrl,
+                VideoContentUrl = course.VideoContentUrl,
+                VideoDurationMinutes = course.VideoDurationMinutes,
+                Reviews = reviewDtos,
+                Sections = sectionDtos,
+                Contents = unassignedContentDtos
             };
 
             return Ok(ApiResponse<CourseDetailDto>.Success(courseDetailDto, "Course retrieved successfully", 200));
         }
 
-        [HttpPost("{id}/content")]
-        [Authorize(Roles = "Tutor")]
-        [Consumes("multipart/form-data")]
-        public async Task<IActionResult> UploadCourseContent(int id, [FromForm] UploadCourseContentDto dto)
+        // POST api/courses/{id}/sections - Create a new section
+        [HttpPost("{id}/sections")]
+        [Authorize(Roles = "Tutor,Admin")]
+        public async Task<IActionResult> CreateSection(int id, [FromBody] CourseSectionCreateDto dto)
         {
             var course = await _context.Courses.FindAsync(id);
             if (course == null) return NotFound(ApiResponse.Error("Course not found", 404));
 
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            if (course.TutorId != userId)
-            {
-                return Forbid();
-            }
+            var userRole = User.FindFirstValue(ClaimTypes.Role);
+            if (course.TutorId != userId && userRole != "Admin") return Forbid();
 
-            if (dto.File == null || dto.File.Length == 0)
-            {
-                return BadRequest(ApiResponse.Error("No file uploaded or file is empty", 400));
-            }
-
-            var uploadResult = await _cloudinaryService.UploadVideoAsync(dto.File!);
-
-            var courseContent = new CourseContent
+            var section = new CourseSection
             {
                 CourseId = id,
                 Title = dto.Title,
-                PublicId = uploadResult.PublicId,
-                SecureUrl = uploadResult.SecureUrl.ToString(),
-                ContentType = dto.ContentType,
-                Duration = uploadResult.Duration,
                 Order = dto.Order
             };
 
-            _context.CourseContents.Add(courseContent);
+            _context.CourseSections.Add(section);
             await _context.SaveChangesAsync();
 
-            return Ok(ApiResponse<CourseContent>.Success(courseContent, "Content uploaded successfully", 200));
+            return Ok(ApiResponse<CourseSection>.Success(section, "Section created successfully", 201));
         }
 
-        [HttpGet("{id}/stream")]
-        [Authorize]
-        public async Task<IActionResult> GetStreamUrl(int id)
+        [HttpPut("{courseId}/sections/{sectionId}")]
+        [Authorize(Roles = "Tutor,Admin")]
+        public async Task<IActionResult> UpdateSection(int courseId, int sectionId, [FromBody] CourseSectionCreateDto dto)
         {
+            var section = await _context.CourseSections.FirstOrDefaultAsync(s => s.Id == sectionId && s.CourseId == courseId);
+            if (section == null) return NotFound(ApiResponse.Error("Section not found", 404));
+
+            var course = await _context.Courses.FindAsync(courseId);
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            var isEnrolled = await _context.Enrollments.AnyAsync(e => e.CourseId == id && e.UserId == userId);
+            var userRole = User.FindFirstValue(ClaimTypes.Role);
+            if (course.TutorId != userId && userRole != "Admin") return Forbid();
 
-            if (!isEnrolled)
+            section.Title = dto.Title;
+            section.Order = dto.Order;
+
+            await _context.SaveChangesAsync();
+            return Ok(ApiResponse<CourseSection>.Success(section, "Section updated successfully", 200));
+        }
+
+        [HttpDelete("{courseId}/sections/{sectionId}")]
+        [Authorize(Roles = "Tutor,Admin")]
+        public async Task<IActionResult> DeleteSection(int courseId, int sectionId)
+        {
+            var section = await _context.CourseSections.FirstOrDefaultAsync(s => s.Id == sectionId && s.CourseId == courseId);
+            if (section == null) return NotFound(ApiResponse.Error("Section not found", 404));
+
+            var course = await _context.Courses.FindAsync(courseId);
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            var userRole = User.FindFirstValue(ClaimTypes.Role);
+            if (course.TutorId != userId && userRole != "Admin") return Forbid();
+
+            _context.CourseSections.Remove(section);
+            await _context.SaveChangesAsync();
+            return Ok(ApiResponse.Success("Section deleted successfully", 200));
+        }
+
+        // PATCH api/courses/{id}/status - Update a course's status (Admin only)
+        [HttpPatch("{id}/status")]
+        [Authorize(Roles = "Admin")]
+        public async Task<IActionResult> UpdateCourseStatus(int id, [FromBody] UpdateCourseStatusDto dto)
+        {
+            if (!ModelState.IsValid)
+                return BadRequest(ApiResponse.Error("Invalid status payload", 400));
+
+            if (dto.Status != CourseStatus.Approved && dto.Status != CourseStatus.Rejected)
+                return BadRequest(ApiResponse.Error("Status must be Approved or Rejected", 400));
+
+            var course = await _context.Courses
+                .Include(c => c.Tutor)
+                .Include(c => c.Enrollments)
+                .Include(c => c.Reviews)
+                .FirstOrDefaultAsync(c => c.Id == id);
+
+            if (course == null)
+                return NotFound(ApiResponse.Error("Course not found", 404));
+
+            course.Status = dto.Status;
+            course.UpdatedAt = DateTime.UtcNow;
+            await _context.SaveChangesAsync();
+
+            var courseDto = new CourseDto
             {
-                return Forbid();
+                Id = course.Id,
+                Title = course.Title,
+                Subtitle = course.Subtitle,
+                Description = course.Description,
+                Category = course.Category,
+                Level = course.Level,
+                Language = course.Language,
+                Tags = course.Tags,
+                Features = course.Features,
+                TutorId = course.TutorId,
+                TutorName = course.Tutor?.FullName,
+                EnrollmentCount = course.Enrollments?.Count ?? 0,
+                AverageRating = course.Reviews != null && course.Reviews.Any() ? course.Reviews.Average(r => r.Rating) : 0,
+                Price = course.Price,
+                Status = course.Status,
+                CreatedAt = course.CreatedAt,
+                UpdatedAt = course.UpdatedAt,
+                VideoCoverImageUrl = course.VideoCoverImageUrl,
+                VideoContentUrl = course.VideoContentUrl,
+                VideoDurationMinutes = course.VideoDurationMinutes
+            };
+
+            return Ok(ApiResponse<CourseDto>.Success(courseDto, "Course status updated successfully", 200));
+        }
+
+        // POST api/courses/{id}/contents - Add content to a course (Tutor/Admin)
+        [HttpPost("{id}/contents")]
+        [Authorize(Roles = "Tutor,Admin")]
+        public async Task<IActionResult> AddContent(int id, [FromBody] CourseContentCreateDto contentDto)
+        {
+            try
+            {
+                var course = await _context.Courses.FindAsync(id);
+                if (course == null) return NotFound(ApiResponse.Error("Course not found", 404));
+
+                var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+                var userRole = User.FindFirstValue(ClaimTypes.Role);
+                if (course.TutorId != userId && userRole != "Admin") return Forbid();
+
+                string resourceType = "video";
+                if (contentDto.ContentType == "pdf" || contentDto.ContentType == "document")
+                {
+                    resourceType = "image";
+                }
+                
+                var secureUrl = _cloudinaryService.GetSecureUrl(contentDto.PublicId, resourceType);
+
+                var content = new CourseContent
+                {
+                    CourseId = id,
+                    SectionId = contentDto.SectionId,
+                    Title = contentDto.Title,
+                    PublicId = contentDto.PublicId,
+                    ContentType = contentDto.ContentType,
+                    Duration = contentDto.Duration,
+                    Order = contentDto.Order,
+                    SecureUrl = secureUrl
+                };
+
+                _context.CourseContents.Add(content);
+                await _context.SaveChangesAsync();
+
+                var responseDto = new CourseContentResponseDto
+                {
+                    Id = content.Id,
+                    Title = content.Title,
+                    PublicId = content.PublicId,
+                    SecureUrl = content.SecureUrl,
+                    ContentType = content.ContentType,
+                    Duration = content.Duration,
+                    Order = content.Order
+                };
+
+                return Ok(ApiResponse<CourseContentResponseDto>.Success(responseDto, "Content added successfully", 201));
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, ApiResponse.Error($"Internal Server Error: {ex.Message}", 500));
+            }
+        }
+
+        // PUT api/courses/{courseId}/contents/{contentId} - Update content (Tutor/Admin)
+        [HttpPut("{courseId}/contents/{contentId}")]
+        [Authorize(Roles = "Tutor,Admin")]
+        public async Task<IActionResult> UpdateContent(int courseId, int contentId, [FromBody] CourseContentUpdateDto contentDto)
+        {
+            var content = await _context.CourseContents.FirstOrDefaultAsync(c => c.Id == contentId && c.CourseId == courseId);
+            if (content == null) return NotFound(ApiResponse.Error("Content not found", 404));
+
+            var course = await _context.Courses.FindAsync(courseId);
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            var userRole = User.FindFirstValue(ClaimTypes.Role);
+            if (course.TutorId != userId && userRole != "Admin") return Forbid();
+
+            content.Title = contentDto.Title;
+            content.Order = contentDto.Order;
+            content.SectionId = contentDto.SectionId;
+            
+            if (!string.IsNullOrEmpty(contentDto.PublicId))
+            {
+                content.PublicId = contentDto.PublicId;
+                content.ContentType = contentDto.ContentType;
+                content.Duration = contentDto.Duration;
+                
+                string resourceType = "video";
+                if (content.ContentType == "pdf" || content.ContentType == "document")
+                {
+                    resourceType = "image";
+                }
+                content.SecureUrl = _cloudinaryService.GetSecureUrl(content.PublicId, resourceType);
             }
 
-            var courseContent = await _context.CourseContents.FirstOrDefaultAsync(cc => cc.CourseId == id && cc.ContentType == "video");
-            if (courseContent == null)
+            await _context.SaveChangesAsync();
+
+            var responseDto = new CourseContentResponseDto
             {
-                return NotFound(ApiResponse.Error("No video content found for this course", 404));
-            }
+                Id = content.Id,
+                Title = content.Title,
+                PublicId = content.PublicId,
+                SecureUrl = content.SecureUrl,
+                ContentType = content.ContentType,
+                Duration = content.Duration,
+                Order = content.Order
+            };
 
-            var secureUrl = _cloudinaryService.GetSecureVideoUrl(courseContent.PublicId);
-
-            return Ok(ApiResponse<string>.Success(secureUrl, "Secure stream URL generated", 200));
+            return Ok(ApiResponse<CourseContentResponseDto>.Success(responseDto, "Content updated successfully", 200));
         }
 
         // POST api/courses - Create a new course (Tutor/Admin only)
@@ -174,13 +393,19 @@ namespace Course_management.Controllers
             var course = new Course
             {
                 Title = courseDto.Title,
+                Subtitle = courseDto.Subtitle,
                 Description = courseDto.Description,
+                Category = courseDto.Category,
+                Level = courseDto.Level,
+                Language = courseDto.Language,
+                Tags = courseDto.Tags,
+                Features = courseDto.Features,
                 TutorId = userId,
                 Price = courseDto.Price,
                 VideoCoverImageUrl = courseDto.VideoCoverImageUrl,
                 VideoContentUrl = courseDto.VideoContentUrl,
-                VideoDurationMinutes = courseDto.VideoDurationMinutes,
-                Status = CourseStatus.Pending // Default status
+                VideoDurationMinutes = courseDto.videoDurationMinutes,
+                Status = CourseStatus.Pending 
             };
 
             _context.Courses.Add(course);
@@ -190,56 +415,49 @@ namespace Course_management.Controllers
                 ApiResponse<Course>.Success(course, "Course created successfully", 201));
         }
 
-        // PUT api/courses/5 - Update a course (Tutor who owns the course or Admin)
+        // PUT api/courses/5 - Update a course
         [HttpPut("{id}")]
         [Authorize(Roles = "Tutor,Admin")]
         public async Task<IActionResult> UpdateCourse(int id, [FromBody] CourseUpdateDto courseDto)
         {
-            if (!ModelState.IsValid)
-                return BadRequest(ApiResponse.Error("Invalid course data", 400));
-
             var course = await _context.Courses.FindAsync(id);
-            if (course == null)
-                return NotFound(ApiResponse.Error("Course not found", 404));
+            if (course == null) return NotFound(ApiResponse.Error("Course not found", 404));
 
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
             var userRole = User.FindFirstValue(ClaimTypes.Role);
-
-            // Check if user is the tutor who owns the course or an admin
-            if (course.TutorId != userId && userRole != "Admin")
-                return Forbid(ApiResponse.Error("You don't have permission to update this course", 403).ToString());
+            if (course.TutorId != userId && userRole != "Admin") return Forbid();
 
             course.Title = courseDto.Title;
+            course.Subtitle = courseDto.Subtitle;
             course.Description = courseDto.Description;
+            course.Category = courseDto.Category;
+            course.Level = courseDto.Level;
+            course.Language = courseDto.Language;
+            course.Tags = courseDto.Tags;
+            course.Features = courseDto.Features;
             course.Price = courseDto.Price;
             course.VideoCoverImageUrl = courseDto.VideoCoverImageUrl;
             course.VideoContentUrl = courseDto.VideoContentUrl;
-            course.VideoDurationMinutes = courseDto.VideoDurationMinutes;
+            course.VideoDurationMinutes = courseDto.videoDurationMinutes;
 
             await _context.SaveChangesAsync();
-
             return Ok(ApiResponse.Success("Course updated successfully", 200));
         }
 
-        // DELETE api/courses/5 - Delete a course (Tutor who owns the course or Admin)
+        // DELETE api/courses/5
         [HttpDelete("{id}")]
         [Authorize(Roles = "Tutor,Admin")]
         public async Task<IActionResult> DeleteCourse(int id)
         {
             var course = await _context.Courses.FindAsync(id);
-            if (course == null)
-                return NotFound(ApiResponse.Error("Course not found", 404));
+            if (course == null) return NotFound(ApiResponse.Error("Course not found", 404));
 
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
             var userRole = User.FindFirstValue(ClaimTypes.Role);
-
-            // Check if user is the tutor who owns the course or an admin
-            if (course.TutorId != userId && userRole != "Admin")
-                return Forbid(ApiResponse.Error("You don't have permission to delete this course", 403).ToString());
+            if (course.TutorId != userId && userRole != "Admin") return Forbid();
 
             _context.Courses.Remove(course);
             await _context.SaveChangesAsync();
-
             return Ok(ApiResponse.Success("Course deleted successfully", 200));
         }
     }

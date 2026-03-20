@@ -7,6 +7,9 @@ namespace Course_management.Models
         public int Id { get; set; }
         public int CourseId { get; set; }
         public Course Course { get; set; }
+        
+        public int? SectionId { get; set; }
+        public CourseSection? Section { get; set; }
 
         [Required]
         public string Title { get; set; }

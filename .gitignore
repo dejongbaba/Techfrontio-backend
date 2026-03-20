@@ -2374,3 +2374,4 @@ PublishScripts/
 # NuGet Packages
 *.nupkg
 *.sn
+techfront_dev.db

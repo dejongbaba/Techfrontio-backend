@@ -103,6 +103,14 @@ namespace Course_management.Controllers
             if (course == null)
                 return NotFound(ApiResponse.Error("Course not found", 404));
 
+            // Only allow enrollments for approved courses
+            if (course.Status != CourseStatus.Approved)
+                return BadRequest(ApiResponse.Error("Course is not approved for enrollment", 400));
+
+            // Only allow direct enrollment for free courses
+            if (course.Price > 0)
+                return BadRequest(ApiResponse.Error("This is a paid course. Please complete payment to enroll.", 400));
+
             // Check if user is already enrolled
             var existingEnrollment = await _context.Enrollments
                 .FirstOrDefaultAsync(e => e.UserId == userId && e.CourseId == enrollmentDto.CourseId);

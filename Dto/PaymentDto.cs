@@ -31,4 +31,10 @@ namespace Course_management.Dto
         public string ReceiptUrl { get; set; }
         public string Notes { get; set; }
     }
+
+    public class PaymentInitiateDto
+    {
+        public int CourseId { get; set; }
+        public string CallbackUrl { get; set; }
+    }
 }

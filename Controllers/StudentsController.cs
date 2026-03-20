@@ -258,6 +258,7 @@ namespace Course_management.Controllers
             var course = await _context.Courses
                 .Include(c => c.Tutor)
                 .Include(c => c.Reviews)
+                .Include(c => c.CourseContents)
                 .FirstOrDefaultAsync(c => c.Id == id);
 
             if (course == null)
@@ -315,7 +316,18 @@ namespace Course_management.Controllers
                     IsCompleted = progress.IsCompleted,
                     CompletedAt = progress.CompletedAt
                 } : null,
-                Tasks = tasks
+                Tasks = tasks,
+                Contents = course.CourseContents?.OrderBy(c => c.Order).Select(c => new CourseContentDto
+                {
+                    Id = c.Id,
+                    Title = c.Title,
+                    ContentType = c.ContentType,
+                    Duration = c.Duration,
+                    Order = c.Order,
+                    IsCompleted = progress != null && !string.IsNullOrEmpty(progress.CompletedContentIds) && progress.CompletedContentIds.Split(',').Contains(c.Id.ToString()),
+                    PublicId = c.PublicId,
+                    SecureUrl = c.SecureUrl
+                }).ToList()
             };
 
             return Ok(ApiResponse<CourseDetailDto>.Success(courseDetail, "Course details retrieved successfully", 200));
@@ -363,16 +375,66 @@ namespace Course_management.Controllers
             progress.LastWatchedAt = DateTime.UtcNow;
             progress.UpdatedAt = DateTime.UtcNow;
 
-            // Calculate progress percentage
-            if (course.VideoDurationMinutes.HasValue && course.VideoDurationMinutes > 0)
+            // Update completed contents if provided
+            if (updateDto.CompletedContentId.HasValue)
             {
-                progress.ProgressPercentage = Math.Min(100, (decimal)updateDto.WatchedMinutes / course.VideoDurationMinutes.Value * 100);
-                
-                // Mark as completed if watched 95% or more
-                if (progress.ProgressPercentage >= 95 && !progress.IsCompleted)
+                var contentId = updateDto.CompletedContentId.Value.ToString();
+                if (string.IsNullOrEmpty(progress.CompletedContentIds))
                 {
-                    progress.IsCompleted = true;
-                    progress.CompletedAt = DateTime.UtcNow;
+                    progress.CompletedContentIds = contentId;
+                }
+                else
+                {
+                    var completedList = progress.CompletedContentIds.Split(',').ToList();
+                    if (!completedList.Contains(contentId))
+                    {
+                        completedList.Add(contentId);
+                        progress.CompletedContentIds = string.Join(",", completedList);
+                    }
+                }
+            }
+
+            // Calculate progress percentage
+            // If we have course contents, use the percentage of completed contents
+            var totalContents = await _context.CourseContents.CountAsync(c => c.CourseId == updateDto.CourseId);
+            if (totalContents > 0)
+            {
+                var completedCount = string.IsNullOrEmpty(progress.CompletedContentIds) 
+                    ? 0 
+                    : progress.CompletedContentIds.Split(',').Length;
+                
+                progress.ProgressPercentage = Math.Min(100, (decimal)completedCount / totalContents * 100);
+            }
+            else if (course.VideoDurationMinutes.HasValue && course.VideoDurationMinutes > 0)
+            {
+                // Fallback to watched minutes if no contents defined
+                progress.ProgressPercentage = Math.Min(100, (decimal)updateDto.WatchedMinutes / course.VideoDurationMinutes.Value * 100);
+            }
+
+            // Mark as completed if progress is 100% (or 95% for legacy logic)
+            if (progress.ProgressPercentage >= 95 && !progress.IsCompleted)
+            {
+                progress.IsCompleted = true;
+                progress.CompletedAt = DateTime.UtcNow;
+
+                // Check and award certificate
+                var hasCertificate = await _context.Certificates.AnyAsync(c => c.StudentId == userId && c.CourseId == updateDto.CourseId && c.IsActive);
+                if (!hasCertificate)
+                {
+                    var courseTitle = course.Title ?? "Course";
+                    var number = $"TF-{DateTime.UtcNow:yyyy}-{Guid.NewGuid().ToString("N").Substring(0, 8).ToUpper()}";
+                    var certificate = new Certificate
+                    {
+                        StudentId = userId,
+                        CourseId = updateDto.CourseId,
+                        CertificateName = $"Certificate of Completion - {courseTitle}",
+                        CertificateNumber = number,
+                        Description = $"Awarded for completing \"{courseTitle}\"",
+                        IsActive = true,
+                        IssuedDate = DateTime.UtcNow,
+                        CertificateUrl = $"/certificates/view/{number}"
+                    };
+                    _context.Certificates.Add(certificate);
                 }
             }
 

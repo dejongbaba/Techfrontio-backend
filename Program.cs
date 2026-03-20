@@ -14,8 +14,12 @@ using Npgsql;
 using Course_management.Data;
 using Course_management.Interfaces;
 using Course_management.Services;
+using QuestPDF.Infrastructure;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// Configure QuestPDF
+QuestPDF.Settings.License = LicenseType.Community;
 
 // Configure Kestrel for Render deployment (production only)
 if (builder.Environment.IsProduction())
@@ -25,6 +29,10 @@ if (builder.Environment.IsProduction())
         var port = Environment.GetEnvironmentVariable("PORT") ?? "10000";
         options.ListenAnyIP(int.Parse(port));
     });
+}
+else
+{
+    builder.WebHost.UseUrls("http://localhost:5282");
 }
 
 // Add services to the container.
@@ -71,6 +79,22 @@ builder.Services.AddSwaggerGen(options =>
                 In = Microsoft.OpenApi.Models.ParameterLocation.Header
             },
             new List<string>()
+        }
+    });
+    
+    // Map form file types for Swagger to handle multipart/form-data correctly
+    options.MapType<Microsoft.AspNetCore.Http.IFormFile>(() => new Microsoft.OpenApi.Models.OpenApiSchema
+    {
+        Type = "string",
+        Format = "binary"
+    });
+    options.MapType<IEnumerable<Microsoft.AspNetCore.Http.IFormFile>>(() => new Microsoft.OpenApi.Models.OpenApiSchema
+    {
+        Type = "array",
+        Items = new Microsoft.OpenApi.Models.OpenApiSchema
+        {
+            Type = "string",
+            Format = "binary"
         }
     });
 });
@@ -134,8 +158,20 @@ if (builder.Environment.IsProduction())
 }
 else
 {
-    builder.Services.AddDbContext<Course_management.Data.DataContext>(options =>
-        options.UseSqlServer(connectionString));
+    // var cfgUseSqlite = builder.Configuration.GetValue<bool>("UseSqliteDev", false);
+    // var envUseSqlite = Environment.GetEnvironmentVariable("USE_SQLITE_DEV");
+    // var useSqliteDev = cfgUseSqlite || (!string.IsNullOrEmpty(envUseSqlite) && envUseSqlite.Equals("true", StringComparison.OrdinalIgnoreCase));
+    // if (useSqliteDev)
+    // {
+    //     var devConn = builder.Configuration.GetConnectionString("SqliteConnection") ?? "Data Source=techfront_dev.db";
+    //     builder.Services.AddDbContext<Course_management.Data.DataContext>(options =>
+    //         options.UseSqlite(devConn));
+    // }
+    // else
+    // {
+        builder.Services.AddDbContext<Course_management.Data.DataContext>(options =>
+            options.UseSqlServer(connectionString));
+    // }
 }
 builder.Services.AddIdentity<Course_management.Models.User, Microsoft.AspNetCore.Identity.IdentityRole>()
     .AddEntityFrameworkStores<Course_management.Data.DataContext>()
@@ -275,7 +311,15 @@ try
        logger.LogInformation("Database connection successful.");
         
        // Ensure database is created and apply any pending migrations
-       await context.Database.MigrateAsync();
+       var provider = context.Database.ProviderName ?? string.Empty;
+       if (provider.Contains("Sqlite", StringComparison.OrdinalIgnoreCase))
+       {
+           await context.Database.EnsureCreatedAsync();
+       }
+       else
+       {
+           await context.Database.MigrateAsync();
+       }
         
        logger.LogInformation("Database migration completed successfully.");
         
@@ -283,6 +327,19 @@ try
        await DataContext.SeedData(app.Services);
         
        logger.LogInformation("Database seeding completed.");
+
+       // Test CloudinaryService
+       try
+       {
+           var cloudinaryService = scope.ServiceProvider.GetRequiredService<ICloudinaryService>();
+           Console.WriteLine("Testing CloudinaryService...");
+           var url = cloudinaryService.GetSecureUrl("test_public_id", "video");
+           Console.WriteLine($"CloudinaryService Test Success: {url}");
+       }
+       catch (Exception ex)
+       {
+           Console.WriteLine($"CloudinaryService Test Failed: {ex}");
+       }
    }
 }
 catch (Exception ex)
