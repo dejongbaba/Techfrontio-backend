@@ -76,17 +76,16 @@ namespace Course_management.Data
                 .HasForeignKey(p => p.CourseId)
                 .OnDelete(DeleteBehavior.Restrict);
 
-            // Configure decimal precision for SQL Server
             builder.Entity<Payment>()
                 .Property(p => p.Amount)
-                .HasColumnType("decimal(18,2)");
+                .HasPrecision(18, 2);
 
-            // Configure Course.Price precision for SQL Server compatibility
+            // Configure Course.Price precision
             builder.Entity<Course>()
                 .Property(c => c.Price)
                 .HasPrecision(18, 2);
 
-            // Configure Identity tables for SQL Server compatibility
+            // Configure Identity tables
             builder.Entity<IdentityRole>()
                 .Property(r => r.Id)
                 .HasMaxLength(450);

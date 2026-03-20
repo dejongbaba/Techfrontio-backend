@@ -170,11 +170,8 @@ else
     //     builder.Services.AddDbContext<Course_management.Data.DataContext>(options =>
     //         options.UseSqlite(devConn));
     // }
-    // else
-    // {
-        builder.Services.AddDbContext<Course_management.Data.DataContext>(options =>
-            options.UseSqlServer(connectionString));
-    // }
+    builder.Services.AddDbContext<Course_management.Data.DataContext>(options =>
+        options.UseNpgsql(connectionString));
 }
 builder.Services.AddIdentity<Course_management.Models.User, Microsoft.AspNetCore.Identity.IdentityRole>()
     .AddEntityFrameworkStores<Course_management.Data.DataContext>()
