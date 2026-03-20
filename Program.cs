@@ -129,27 +129,52 @@ static string ConvertDatabaseUrl(string databaseUrl)
 {
     try
     {
-        var uri = new Uri(databaseUrl);
-        var host = uri.Host;
+        // Trim the database URL to handle any accidental whitespace
+        databaseUrl = databaseUrl.Trim();
+        
+        // If it's already a .NET connection string, just return it
+        if (databaseUrl.Contains("Host=") && databaseUrl.Contains("Database=") && databaseUrl.Contains("Username="))
+        {
+            return databaseUrl;
+        }
+
+        // Support both postgres:// and postgresql:// schemes
+        string uriString = databaseUrl;
+        if (uriString.StartsWith("postgres://", StringComparison.OrdinalIgnoreCase))
+        {
+            uriString = "postgresql://" + uriString.Substring("postgres://".Length);
+        }
+
+        var uri = new Uri(uriString);
+        var host = string.IsNullOrEmpty(uri.Host) ? uri.Authority : uri.Host; // Fallback to Authority if Host is empty
         var port = uri.Port == -1 ? 5432 : uri.Port; // Default PostgreSQL port
         var database = uri.AbsolutePath.TrimStart('/');
         var userInfo = uri.UserInfo.Split(':');
         var username = userInfo[0];
         var password = userInfo.Length > 1 ? userInfo[1] : "";
         
+        // Handle cases where Authority might contain the port, so we strip it if it does
+        if (host.Contains(":"))
+        {
+            host = host.Split(':')[0];
+        }
+        
         if (string.IsNullOrEmpty(host) || string.IsNullOrEmpty(database) || string.IsNullOrEmpty(username))
         {
             throw new ArgumentException($"Invalid DATABASE_URL format. Host: '{host}', Database: '{database}', Username: '{username}'");
         }
         
-        var connectionString = $"Host={host};Port={port};Database={database};Username={username};Password={password};SSL Mode=Require;Trust Server Certificate=true";
-        Console.WriteLine($"Converted DATABASE_URL to connection string: Host={host}, Port={port}, Database={database}, Username={username}");
+        // For Render internal connections, "SSL Mode=Prefer" is often more reliable
+        // but "SSL Mode=Require;Trust Server Certificate=true" is also fine for external/managed DBs
+        var connectionString = $"Host={host};Port={port};Database={database};Username={username};Password={password};SSL Mode=Prefer;Trust Server Certificate=true;Include Error Detail=true";
+        // Use a safe way to log connection info without exposing the password
+        Console.WriteLine($"[DB INFO] Parsed Host: {host}, Port: {port}, Database: {database}, Username: {username}");
         
         return connectionString;
     }
     catch (Exception ex)
     {
-        throw new ArgumentException($"Failed to parse DATABASE_URL: {ex.Message}", ex);
+        throw new ArgumentException($"Failed to parse DATABASE_URL: {ex.Message}. URL was: {databaseUrl}", ex);
     }
 }
 
@@ -157,21 +182,23 @@ static string ConvertDatabaseUrl(string databaseUrl)
 if (builder.Environment.IsProduction())
 {
     builder.Services.AddDbContext<Course_management.Data.DataContext>(options =>
-        options.UseNpgsql(connectionString));
+    {
+        options.UseNpgsql(connectionString, npgsqlOptions => 
+        {
+            npgsqlOptions.EnableRetryOnFailure(5, TimeSpan.FromSeconds(10), null);
+            npgsqlOptions.UseQuerySplittingBehavior(QuerySplittingBehavior.SplitQuery);
+        });
+    });
 }
 else
 {
-    // var cfgUseSqlite = builder.Configuration.GetValue<bool>("UseSqliteDev", false);
-    // var envUseSqlite = Environment.GetEnvironmentVariable("USE_SQLITE_DEV");
-    // var useSqliteDev = cfgUseSqlite || (!string.IsNullOrEmpty(envUseSqlite) && envUseSqlite.Equals("true", StringComparison.OrdinalIgnoreCase));
-    // if (useSqliteDev)
-    // {
-    //     var devConn = builder.Configuration.GetConnectionString("SqliteConnection") ?? "Data Source=techfront_dev.db";
-    //     builder.Services.AddDbContext<Course_management.Data.DataContext>(options =>
-    //         options.UseSqlite(devConn));
-    // }
     builder.Services.AddDbContext<Course_management.Data.DataContext>(options =>
-        options.UseNpgsql(connectionString));
+    {
+        options.UseNpgsql(connectionString, npgsqlOptions =>
+        {
+            npgsqlOptions.UseQuerySplittingBehavior(QuerySplittingBehavior.SplitQuery);
+        });
+    });
 }
 builder.Services.AddIdentity<Course_management.Models.User, Microsoft.AspNetCore.Identity.IdentityRole>()
     .AddEntityFrameworkStores<Course_management.Data.DataContext>()
