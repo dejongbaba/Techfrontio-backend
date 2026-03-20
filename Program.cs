@@ -22,18 +22,19 @@ var builder = WebApplication.CreateBuilder(args);
 QuestPDF.Settings.License = LicenseType.Community;
 
 // Configure Kestrel for Render deployment (production only)
-if (builder.Environment.IsProduction())
-{
-    builder.WebHost.ConfigureKestrel(options =>
+    // Configure the port and listening address for deployment and local development
+    var port = Environment.GetEnvironmentVariable("PORT");
+    if (!string.IsNullOrEmpty(port))
     {
-        var port = Environment.GetEnvironmentVariable("PORT") ?? "10000";
-        options.ListenAnyIP(int.Parse(port));
-    });
-}
-else
-{
-    builder.WebHost.UseUrls("http://localhost:5282");
-}
+        builder.WebHost.ConfigureKestrel(options =>
+        {
+            options.ListenAnyIP(int.Parse(port));
+        });
+    }
+    else if (!builder.Environment.IsProduction())
+    {
+        builder.WebHost.UseUrls("http://localhost:5282");
+    }
 
 // Add services to the container.
 
@@ -97,6 +98,8 @@ builder.Services.AddSwaggerGen(options =>
             Format = "binary"
         }
     });
+
+    options.SwaggerDoc("v1", new OpenApiInfo { Title = "Course Management API", Version = "v1" });
 });
 
 // Add EF Core and Identity
@@ -196,7 +199,7 @@ builder.Services.AddAuthentication(options =>
         ValidateIssuerSigningKey = true,
         ValidIssuer = builder.Configuration["Jwt:Issuer"],
         ValidAudience = builder.Configuration["Jwt:Audience"],
-        IssuerSigningKey = new Microsoft.IdentityModel.Tokens.SymmetricSecurityKey(System.Text.Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"])),
+        IssuerSigningKey = new Microsoft.IdentityModel.Tokens.SymmetricSecurityKey(System.Text.Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"] ?? "a_very_long_secret_key_of_at_least_32_characters")),
         NameClaimType = ClaimTypes.Name,
         RoleClaimType = ClaimTypes.Role
     };
@@ -253,7 +256,7 @@ var app = builder.Build();
 app.UseSwagger();
 app.UseSwaggerUI(c =>
 {
-    c.SwaggerEndpoint("/swagger/v1/swagger.json", "Course Management API V1");
+    c.SwaggerEndpoint("v1/swagger.json", "Course Management API V1");
     c.DocExpansion(Swashbuckle.AspNetCore.SwaggerUI.DocExpansion.None);
     c.RoutePrefix = "swagger"; // Explicitly set the route prefix
 });
