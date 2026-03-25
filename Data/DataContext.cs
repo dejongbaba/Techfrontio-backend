@@ -28,8 +28,7 @@ namespace Course_management.Data
         public DbSet<Certificate> Certificates { get; set; }
         public DbSet<LearningStreak> LearningStreaks { get; set; }
         public DbSet<StudentTask> StudentTasks { get; set; }
-        public DbSet<InterviewQuestion> InterviewQuestions { get; set; }
-        public DbSet<DocumentationPage> DocumentationPages { get; set; }
+
         
         // Quiz DbSets
         public DbSet<Quiz> Quizzes { get; set; }
@@ -292,83 +291,6 @@ namespace Course_management.Data
                 await context.SaveChangesAsync();
             }
 
-            // Seed Interview Questions if they don't exist
-            if (!context.InterviewQuestions.Any())
-            {
-                var questions = new[]
-                {
-                    new InterviewQuestion 
-                    { 
-                        Category = "React", 
-                        Difficulty = "Easy", 
-                        QuestionText = "What is the Virtual DOM?", 
-                        AnswerText = "The Virtual DOM is a lightweight copy of the actual DOM. React uses it to improve performance by updating only the changed parts of the actual DOM.", 
-                        CreatedAt = DateTime.UtcNow 
-                    },
-                    new InterviewQuestion 
-                    { 
-                        Category = "React", 
-                        Difficulty = "Medium", 
-                        QuestionText = "Explain the useEffect hook.", 
-                        AnswerText = "useEffect is a hook that lets you perform side effects in function components. It serves the same purpose as componentDidMount, componentDidUpdate, and componentWillUnmount in React classes.", 
-                        CreatedAt = DateTime.UtcNow 
-                    },
-                    new InterviewQuestion 
-                    { 
-                        Category = "C#", 
-                        Difficulty = "Easy", 
-                        QuestionText = "What is the difference between value types and reference types?", 
-                        AnswerText = "Value types hold the data directly (e.g., int, struct), while reference types hold a reference to the data's memory address (e.g., class, string).", 
-                        CreatedAt = DateTime.UtcNow 
-                    },
-                    new InterviewQuestion 
-                    { 
-                        Category = "C#", 
-                        Difficulty = "Hard", 
-                        QuestionText = "What is Dependency Injection?", 
-                        AnswerText = "Dependency Injection is a design pattern used to implement IoC. It allows the creation of dependent objects outside of a class and provides those objects to a class through different ways.", 
-                        CreatedAt = DateTime.UtcNow 
-                    }
-                };
-                context.InterviewQuestions.AddRange(questions);
-                await context.SaveChangesAsync();
-            }
-
-            // Seed Documentation Pages if they don't exist
-            if (!context.DocumentationPages.Any())
-            {
-                var docs = new[]
-                {
-                    new DocumentationPage 
-                    { 
-                        Title = "Introduction", 
-                        Slug = "introduction", 
-                        Category = "Getting Started", 
-                        Content = "# Introduction\n\nWelcome to the Techfrontio Learning Platform. This platform helps you master technical skills through courses, quizzes, and tasks.", 
-                        Order = 1, 
-                        UpdatedAt = DateTime.UtcNow 
-                    },
-                    new DocumentationPage 
-                    { 
-                        Title = "Installation", 
-                        Slug = "installation", 
-                        Category = "Getting Started", 
-                        Content = "# Installation\n\nTo get started, ensure you have the following installed:\n- Node.js\n- .NET SDK\n- Docker", 
-                        Order = 2, 
-                        UpdatedAt = DateTime.UtcNow 
-                    },
-                    new DocumentationPage 
-                    { 
-                        Title = "Course Structure", 
-                        Slug = "course-structure", 
-                        Category = "Guides", 
-                        Content = "# Course Structure\n\nCourses are divided into modules and lessons. Each lesson may contain video content, reading materials, and quizzes.", 
-                        Order = 3, 
-                        UpdatedAt = DateTime.UtcNow 
-                    }
-                };
-                context.DocumentationPages.AddRange(docs);
-                await context.SaveChangesAsync();
             }
         }
     }
